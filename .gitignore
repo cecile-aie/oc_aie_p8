@@ -3,6 +3,8 @@ CamVid/
 data/gtCoarse
 data/gtFine
 data/leftImg8bit
+models
+training_masks
 
 
 # Byte-compiled / optimized / DLL files
