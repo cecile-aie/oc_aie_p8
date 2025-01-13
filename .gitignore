@@ -1,6 +1,9 @@
 # Data directories
 CamVid/
-data/
+data/gtCoarse
+data/gtFine
+data/leftImg8bit
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -173,3 +176,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+test_gpu.ipynb
