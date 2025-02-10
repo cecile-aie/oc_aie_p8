@@ -35,7 +35,7 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
     """Définit les transformations Albumentations."""
     return Compose([
         HorizontalFlip(p=0.5),
-        Rotate(limit=45, p=0.7),
+        Rotate(limit=15, p=0.7),
         OneOf([
             RandomScale(scale_limit=0.2, p=0.5),
             Blur(blur_limit=5, p=0.5),
@@ -48,6 +48,8 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
 # Section 3 : DataGenerator
 # ============================
 
+
+
 class DataGenerator(Sequence):
     def __init__(
         self,
@@ -57,8 +59,18 @@ class DataGenerator(Sequence):
         batch_size: int = 32,
         num_classes: int = 8,  # Nombre de classes
         shuffle: bool = True,
-        augmentation_ratio: float = 1.0
+        augmentation_ratio: float = 1.0,
+        **kwargs  # Ajout de **kwargs
     ):
+        super().__init__(**kwargs)  # Appel à la classe parente
+        self.image_paths = image_paths
+        self.mask_paths = mask_paths
+        self.image_size = image_size
+        self.batch_size = batch_size
+        self.num_classes = num_classes
+        self.shuffle = shuffle
+        self.augmentation_ratio = augmentation_ratio
+        self.on_epoch_end()  # Initialiser l'ordre des indices
         """
         Initialise le générateur de données.
 

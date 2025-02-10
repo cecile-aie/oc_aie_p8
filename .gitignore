@@ -5,6 +5,7 @@ data/gtFine
 data/leftImg8bit
 models
 training_masks
+.virtual_documents
 
 
 # Byte-compiled / optimized / DLL files
@@ -14,6 +15,8 @@ __pycache__/
 
 # C extensions
 *.so
+*.tar
+*.gpg
 
 # Distribution / packaging
 .Python
