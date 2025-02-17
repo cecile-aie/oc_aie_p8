@@ -6,6 +6,7 @@ data/leftImg8bit
 models
 training_masks
 .virtual_documents
+anaconda_projects/db
 
 
 # Byte-compiled / optimized / DLL files
