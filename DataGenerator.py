@@ -11,12 +11,12 @@ from typing import List, Tuple
 # ============================
 
 def load_image(path: str, target_size: Tuple[int, int]) -> np.ndarray:
-    """Charge et redimensionne une image."""
+    """Charge et normalise une image."""
     img = load_img(path, target_size=target_size)
-    return img_to_array(img).astype("float32") / 255.0  # Normalisation entre 0 et 1
+    return img_to_array(img).astype("float32") / 255.0  # Normalisation [0,1]
 
 def load_mask(path: str, target_size: Tuple[int, int]) -> np.ndarray:
-    """Charge et redimensionne un masque."""
+    """Charge un masque et le convertit en uint8."""
     mask = load_img(path, target_size=target_size, color_mode="grayscale")
     return img_to_array(mask).astype("uint8").squeeze()
 
@@ -39,7 +39,7 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
         OneOf([
             RandomScale(scale_limit=0.2, p=0.5),
             Blur(blur_limit=5, p=0.5),
-            GaussNoise(std_range=(0.1, 0.5), mean_range=(0.0, 0.0), p=0.5)
+            GaussNoise(var_limit=(10.0, 50.0), p=0.5)
         ], p=0.7),
         Resize(*image_size)  # Garantir une taille uniforme
     ])
@@ -48,8 +48,6 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
 # Section 3 : DataGenerator
 # ============================
 
-
-
 class DataGenerator(Sequence):
     def __init__(
         self,
@@ -57,12 +55,13 @@ class DataGenerator(Sequence):
         mask_paths: List[str],
         image_size: Tuple[int, int] = (256, 256),
         batch_size: int = 32,
-        num_classes: int = 8,  # Nombre de classes
+        num_classes: int = 8,
         shuffle: bool = True,
         augmentation_ratio: float = 1.0,
-        **kwargs  # Ajout de **kwargs
+        use_sample_weights: bool = True,  # Ajout du paramètre
+        **kwargs
     ):
-        super().__init__(**kwargs)  # Appel à la classe parente
+        super().__init__(**kwargs)
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.image_size = image_size
@@ -70,43 +69,28 @@ class DataGenerator(Sequence):
         self.num_classes = num_classes
         self.shuffle = shuffle
         self.augmentation_ratio = augmentation_ratio
-        self.on_epoch_end()  # Initialiser l'ordre des indices
-        """
-        Initialise le générateur de données.
-
-        Args:
-            image_paths (List[str]): Liste des chemins des images d'entrée.
-            mask_paths (List[str]): Liste des chemins des masques.
-            image_size (Tuple[int, int]): Taille des images/masks (hauteur, largeur).
-            batch_size (int): Taille des lots.
-            num_classes (int): Nombre total de classes pour les masques.
-            shuffle (bool): Indique si les données doivent être mélangées à chaque epoch.
-            augmentation_ratio (float): Ratio d'augmentation [0 à 1]. Définit la proportion des images augmentées.
-        """
-        self.image_paths = image_paths
-        self.mask_paths = mask_paths
-        self.image_size = image_size
-        self.batch_size = batch_size
-        self.num_classes = num_classes
-        self.shuffle = shuffle
-        self.augmentation_ratio = augmentation_ratio
-        self.augmentation = get_augmentations(image_size)
+        self.use_sample_weights = use_sample_weights  # Stocker l'option
+        self.augmentation = get_augmentations(image_size) if augmentation_ratio > 0 else None
         self.on_epoch_end()
 
     def __len__(self) -> int:
         """Retourne le nombre de lots par epoch."""
         return int(np.ceil(len(self.image_paths) / self.batch_size))
 
-    def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray]:
+    def __getitem__(self, index: int):
         """
-        Génère un lot d'images et de masques.
-
-        Args:
-            index (int): Index du lot.
-
-        Returns:
-            Tuple[np.ndarray, np.ndarray]: (batch_images, batch_masks)
+        Génère un lot d'images, de masques et de poids d'échantillons (optionnel).
         """
+        batch_images, batch_masks = self._generate_batch(index)
+
+        if self.use_sample_weights:
+            sample_weights = self._compute_sample_weights(batch_masks)
+            return batch_images, batch_masks, sample_weights
+        else:
+            return batch_images, batch_masks
+
+    def _generate_batch(self, index: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Charge et prépare un lot d'images et de masques."""
         start = index * self.batch_size
         end = start + self.batch_size
         batch_image_paths = self.image_paths[start:end]
@@ -119,7 +103,7 @@ class DataGenerator(Sequence):
             mask = load_mask(mask_path, self.image_size)
 
             # Appliquer des augmentations selon augmentation_ratio
-            if np.random.rand() < self.augmentation_ratio:
+            if self.augmentation and np.random.rand() < self.augmentation_ratio:
                 augmented = self.augmentation(image=img, mask=mask)
                 img, mask = augmented['image'], augmented['mask']
 
@@ -127,6 +111,12 @@ class DataGenerator(Sequence):
             batch_masks.append(one_hot_encode_mask(mask, self.num_classes))
 
         return np.stack(batch_images), np.stack(batch_masks)
+
+    def _compute_sample_weights(self, batch_masks: np.ndarray) -> np.ndarray:
+        """Calcule les poids de classe pour chaque pixel."""
+        class_weights = np.array([1.0, 2.0, 2.5, 3.0, 1.5, 1.0, 2.0, 2.0])  # À ajuster
+        weights = np.dot(batch_masks, class_weights)
+        return weights
 
     def on_epoch_end(self) -> None:
         """Mélange les données après chaque epoch si shuffle est activé."""
@@ -138,11 +128,8 @@ class DataGenerator(Sequence):
     def visualize_batch(self, num_images: int = 5) -> None:
         """
         Visualise les premières images et masques d'un batch.
-
-        Args:
-            num_images (int): Nombre d'images/masques à afficher.
         """
-        batch_images, batch_masks = self.__getitem__(0)  # Premier lot
+        batch_images, batch_masks = self.__getitem__(0)[:2]  # Prendre uniquement X et Y
         num_images = min(num_images, len(batch_images))
         fig, axes = plt.subplots(num_images, 2, figsize=(10, num_images * 5))
 
@@ -166,15 +153,28 @@ if __name__ == "__main__":
     train_input_img_paths = ["path/to/train/image1.jpg", "path/to/train/image2.jpg"]
     train_label_ids_img_paths = ["path/to/train/mask1.png", "path/to/train/mask2.png"]
 
-    # Création du générateur
+    val_input_img_paths = ["path/to/val/image1.jpg", "path/to/val/image2.jpg"]
+    val_label_ids_img_paths = ["path/to/val/mask1.png", "path/to/val/mask2.png"]
+
+    # Création des générateurs
     train_gen = DataGenerator(
         image_paths=train_input_img_paths,
         mask_paths=train_label_ids_img_paths,
-        image_size=(512, 512),
         batch_size=8,
         num_classes=8,
         shuffle=True,
-        augmentation_ratio=0.5
+        augmentation_ratio=0.5,
+        use_sample_weights=True  # ✅ Utilise sample_weights pour l'entraînement
+    )
+
+    val_gen = DataGenerator(
+        image_paths=val_input_img_paths,
+        mask_paths=val_label_ids_img_paths,
+        batch_size=8,
+        num_classes=8,
+        shuffle=False,
+        augmentation_ratio=0.0,
+        use_sample_weights=False  # ✅ Pas de sample_weights pour la validation
     )
 
     # Visualisation d'un batch
