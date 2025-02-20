@@ -39,7 +39,7 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
         OneOf([
             RandomScale(scale_limit=0.2, p=0.5),
             Blur(blur_limit=5, p=0.5),
-            GaussNoise(var_limit=(10.0, 50.0), p=0.5)
+            GaussNoise(std_range=(0.04, 0.2), p=0.5)
         ], p=0.7),
         Resize(*image_size)  # Garantir une taille uniforme
     ])
