@@ -11,17 +11,14 @@ from typing import List, Tuple
 # ============================
 
 def load_image(path: str, target_size: Tuple[int, int]) -> np.ndarray:
-    """Charge et normalise une image."""
     img = load_img(path, target_size=target_size)
     return img_to_array(img).astype("float32") / 255.0  # Normalisation [0,1]
 
 def load_mask(path: str, target_size: Tuple[int, int]) -> np.ndarray:
-    """Charge un masque et le convertit en uint8."""
     mask = load_img(path, target_size=target_size, color_mode="grayscale")
     return img_to_array(mask).astype("uint8").squeeze()
 
 def one_hot_encode_mask(mask: np.ndarray, num_classes: int) -> np.ndarray:
-    """Encode le masque en one-hot."""
     one_hot = np.zeros((*mask.shape, num_classes), dtype=np.uint8)
     for class_id in range(num_classes):
         one_hot[..., class_id] = (mask == class_id)
@@ -32,7 +29,6 @@ def one_hot_encode_mask(mask: np.ndarray, num_classes: int) -> np.ndarray:
 # ============================
 
 def get_augmentations(image_size: Tuple[int, int]) -> Compose:
-    """Définit les transformations Albumentations."""
     return Compose([
         HorizontalFlip(p=0.5),
         Rotate(limit=15, p=0.7),
@@ -41,7 +37,7 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
             Blur(blur_limit=5, p=0.5),
             GaussNoise(std_range=(0.04, 0.2), p=0.5)
         ], p=0.7),
-        Resize(*image_size)  # Garantir une taille uniforme
+        Resize(*image_size)
     ])
 
 # ============================
@@ -58,7 +54,8 @@ class DataGenerator(Sequence):
         num_classes: int = 8,
         shuffle: bool = True,
         augmentation_ratio: float = 1.0,
-        use_sample_weights: bool = True,  # Ajout du paramètre
+        use_sample_weights: bool = True,
+        dynamic_class_weights: bool = True,  # Option pour activer la balance dynamique
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -69,28 +66,29 @@ class DataGenerator(Sequence):
         self.num_classes = num_classes
         self.shuffle = shuffle
         self.augmentation_ratio = augmentation_ratio
-        self.use_sample_weights = use_sample_weights  # Stocker l'option
+        self.use_sample_weights = use_sample_weights
+        self.dynamic_class_weights = dynamic_class_weights  # Option pour la balance dynamique
         self.augmentation = get_augmentations(image_size) if augmentation_ratio > 0 else None
-        self.on_epoch_end()
+        self.epoch = 0  # ✅ Option démarre à -1 pour éviter un premier `on_epoch_end()`
+#        self.on_epoch_end()  # ✅ Permet de bien démarrer avec `epoch = 0`
 
     def __len__(self) -> int:
-        """Retourne le nombre de lots par epoch."""
         return int(np.ceil(len(self.image_paths) / self.batch_size))
 
     def __getitem__(self, index: int):
-        """
-        Génère un lot d'images, de masques et de poids d'échantillons (optionnel).
-        """
+        #print(f"DEBUG - Appel de __getitem__, epoch actuel: {self.epoch}")
         batch_images, batch_masks = self._generate_batch(index)
-
+        
         if self.use_sample_weights:
-            sample_weights = self._compute_sample_weights(batch_masks)
+            class_weights = self._compute_class_weights(batch_masks)
+            if self.dynamic_class_weights:
+                class_weights = self._adjust_class_weights(class_weights)
+            sample_weights = self._compute_sample_weights(batch_masks, class_weights)
             return batch_images, batch_masks, sample_weights
         else:
             return batch_images, batch_masks
 
     def _generate_batch(self, index: int) -> Tuple[np.ndarray, np.ndarray]:
-        """Charge et prépare un lot d'images et de masques."""
         start = index * self.batch_size
         end = start + self.batch_size
         batch_image_paths = self.image_paths[start:end]
@@ -102,7 +100,6 @@ class DataGenerator(Sequence):
             img = load_image(img_path, self.image_size)
             mask = load_mask(mask_path, self.image_size)
 
-            # Appliquer des augmentations selon augmentation_ratio
             if self.augmentation and np.random.rand() < self.augmentation_ratio:
                 augmented = self.augmentation(image=img, mask=mask)
                 img, mask = augmented['image'], augmented['mask']
@@ -112,24 +109,85 @@ class DataGenerator(Sequence):
 
         return np.stack(batch_images), np.stack(batch_masks)
 
-    def _compute_sample_weights(self, batch_masks: np.ndarray) -> np.ndarray:
+    def _compute_class_weights(self, batch_masks: np.ndarray) -> np.ndarray:
+        """
+        Calcul des poids par classe à la volée
+        Si c'est le premier epoch, on retourne un poids égal pour toutes les classes.
+        Sinon, on retourne des poids dynamiques basés sur la fréquence des classes dans le batch.
+        """
+#        if self.epoch == 0:
+            # Premier epoch, tous les poids égaux (pas d'influence sur la perte)
+#            return np.ones(self.num_classes)
+        
+        # Si ce n'est pas le premier epoch, calcul des poids par classe
+        pixel_counts = np.sum(batch_masks, axis=(0, 1, 2))
+
+        # Éviter les divisions par 0 (si une classe est absente)
+        pixel_counts = np.maximum(pixel_counts, 1)
+        # Calcul des poids en inversant les fréquences (plus rare = poids plus grand)
+        class_weights = np.sum(pixel_counts) / pixel_counts  # Calcul des poids des classes
+        # return class_weights / np.sum(class_weights)  # Normalisation classique par la somme
+
+            # Mise à l'échelle logarithmique (en ajoutant un epsilon pour éviter log(0))
+        epsilon = 1e-2  # Ajout d'un petit epsilon pour éviter log(0)
+        log_class_weights = np.log(class_weights + epsilon)  # Logarithme des poids
+
+        # Mise à l'échelle pour avoir des poids compris entre 1 et 5
+        min_weight = 1
+        max_weight = 5
+    
+        # Normalisation linéaire des poids log-transformés
+        scale_factor = (max_weight - min_weight) / (np.max(log_class_weights) - np.min(log_class_weights))
+        scaled_class_weights = (log_class_weights - np.min(log_class_weights)) * scale_factor + min_weight
+        
+        # Conversion en entiers (arrondi)
+        scaled_class_weights = np.round(scaled_class_weights).astype(int)
+    
+        return scaled_class_weights
+
+
+    def _adjust_class_weights(self, class_weights: np.ndarray) -> np.ndarray:
+        """
+        Ajuste les poids des classes au fur et à mesure des époques.
+        Au début, les poids sont tous égaux, et ils augmentent progressivement pour compenser
+        les classes rares.
+        """
+#        if self.epoch == 0:  # ✅ Premier epoch, pas de modification
+#            return np.ones_like(class_weights)
+    
+        # Facteur d'augmentation basé sur l'époque
+        epoch_factor = 1 + 0.05 * self.epoch  # Facteur d'augmentation progressif
+        adjusted_weights = class_weights * epoch_factor
+        return adjusted_weights
+
+    def _compute_sample_weights(self, batch_masks: np.ndarray, class_weights: np.ndarray) -> np.ndarray:
         """Calcule les poids de classe pour chaque pixel."""
-        class_weights = np.array([1.0, 2.0, 2.5, 3.0, 1.5, 1.0, 2.0, 2.0])  # À ajuster
+        #print(f"DEBUG - Epoch: {self.epoch}")  # ✅ Ajout de debug
+        
+        # Possibilité d'utiliser une répartition de classes statique
+        #class_weights = np.array([1.0, 2.0, 2.5, 3.0, 1.5, 1.0, 2.0, 2.0])
+        
+#        if self.epoch == 0:
+            #print("DEBUG - Premier epoch, sample_weights doit être 1 partout")  # ✅ Vérification
+#            return np.ones(batch_masks.shape[:-1])  # ✅ Devrait être (batch_size, H, W) 
+            
         weights = np.dot(batch_masks, class_weights)
         return weights
 
     def on_epoch_end(self) -> None:
-        """Mélange les données après chaque epoch si shuffle est activé."""
+        """Incrémente l'époch et réinitialise les poids si nécessaire."""
+#        if self.epoch == -1:
+#            self.epoch = 0  # ✅ On met à 0 au premier appel
+#        else:
+        self.epoch += 1 # Incrémenter l'époch
+        
         if self.shuffle:
             data = list(zip(self.image_paths, self.mask_paths))
             np.random.shuffle(data)
             self.image_paths, self.mask_paths = zip(*data)
 
     def visualize_batch(self, num_images: int = 5) -> None:
-        """
-        Visualise les premières images et masques d'un batch.
-        """
-        batch_images, batch_masks = self.__getitem__(0)[:2]  # Prendre uniquement X et Y
+        batch_images, batch_masks = self.__getitem__(0)[:2]
         num_images = min(num_images, len(batch_images))
         fig, axes = plt.subplots(num_images, 2, figsize=(10, num_images * 5))
 
@@ -137,12 +195,15 @@ class DataGenerator(Sequence):
             axes[i, 0].imshow(batch_images[i])
             axes[i, 0].set_title("Image")
             axes[i, 0].axis("off")
-            axes[i, 1].imshow(np.argmax(batch_masks[i], axis=-1), cmap="inferno")  # Décodage pour affichage
+            axes[i, 1].imshow(np.argmax(batch_masks[i], axis=-1), cmap="inferno")
             axes[i, 1].set_title("Mask (decoded)")
             axes[i, 1].axis("off")
 
         plt.tight_layout()
         plt.show()
+
+
+
 
 # ============================
 # Section 4 : Exemple d'utilisation
@@ -163,19 +224,11 @@ if __name__ == "__main__":
         batch_size=8,
         num_classes=8,
         shuffle=True,
-        augmentation_ratio=0.5,
-        use_sample_weights=True  # ✅ Utilise sample_weights pour l'entraînement
+        augmentation_ratio=0.5,     # ratio pour limiter les classes rare (si 1 pas d'effet)
+        use_sample_weights=True,    # ✅ Utilise sample_weights pour l'entraînement
+        dynamic_class_weights=True  # Active la balance dynamique des poids pendant l'entrainement
     )
-
-    val_gen = DataGenerator(
-        image_paths=val_input_img_paths,
-        mask_paths=val_label_ids_img_paths,
-        batch_size=8,
-        num_classes=8,
-        shuffle=False,
-        augmentation_ratio=0.0,
-        use_sample_weights=False  # ✅ Pas de sample_weights pour la validation
-    )
+    
 
     # Visualisation d'un batch
     train_gen.visualize_batch(num_images=3)
