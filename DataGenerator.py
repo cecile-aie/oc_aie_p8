@@ -2,7 +2,13 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
-from albumentations import Compose, HorizontalFlip, Rotate, OneOf, RandomScale, Blur, GaussNoise, Resize
+from albumentations import Compose
+from albumentations import (
+    HorizontalFlip, Rotate, RandomScale, Blur, GaussNoise, 
+    GridDistortion, ElasticTransform, CoarseDropout, 
+    RandomBrightnessContrast, OneOf, Resize
+)
+from albumentations.augmentations.transforms import RandomFog, RandomRain
 import matplotlib.pyplot as plt
 from typing import List, Tuple
 
@@ -37,6 +43,21 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
             Blur(blur_limit=5, p=0.5),
             GaussNoise(std_range=(0.04, 0.2), p=0.5)
         ], p=0.7),
+        
+        # Améliorations pour objets fins
+        ElasticTransform(alpha=1, sigma=50, alpha_affine=50, p=0.3),
+        GridDistortion(num_steps=5, distort_limit=0.1, p=0.3),
+        CoarseDropout(max_holes=8, max_height=32, max_width=32, p=0.5),
+
+        # Effets météo
+        OneOf([
+            RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.3),
+            RandomRain(slant_lower=-10, slant_upper=10, drop_width=1, blur_value=3, p=0.3)
+        ], p=0.3),
+
+        RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.5),
+        #fin des améliorations pour modèles avancés
+        
         Resize(*image_size)
     ])
 
