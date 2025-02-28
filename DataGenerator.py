@@ -41,25 +41,26 @@ def get_augmentations(image_size: Tuple[int, int]) -> Compose:
         OneOf([
             RandomScale(scale_limit=0.2, p=0.5),
             Blur(blur_limit=5, p=0.5),
-            GaussNoise(std_range=(0.04, 0.2), p=0.5)
+            GaussNoise(std_range=(0.2, 0.44), mean_range=(0.0, 0.0), per_channel=True,                       noise_scale_factor=1, p=0.5)   
         ], p=0.7),
         
         # Améliorations pour objets fins
-        ElasticTransform(alpha=1, sigma=50, alpha_affine=50, p=0.3),
+        ElasticTransform(alpha=1, sigma=50, p=0.3),
         GridDistortion(num_steps=5, distort_limit=0.1, p=0.3),
-        CoarseDropout(max_holes=8, max_height=32, max_width=32, p=0.5),
+        CoarseDropout(num_holes_range=(1, 2), hole_height_range=(0.1, 0.2),
+        hole_width_range=(0.1, 0.2), fill=0, fill_mask=None, p=0.5),  
 
         # Effets météo
         OneOf([
-            RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.3),
-            RandomRain(slant_lower=-10, slant_upper=10, drop_width=1, blur_value=3, p=0.3)
+            RandomFog(alpha_coef=0.08, fog_coef_range=(0.3, 1), p=0.3),
+            RandomRain(drop_width=1, blur_value=3, p=0.3)  
         ], p=0.3),
 
         RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.5),
-        #fin des améliorations pour modèles avancés
         
         Resize(*image_size)
     ])
+
 
 # ============================
 # Section 3 : DataGenerator
@@ -186,7 +187,7 @@ class DataGenerator(Sequence):
         #print(f"DEBUG - Epoch: {self.epoch}")  # ✅ Ajout de debug
         
         # Possibilité d'utiliser une répartition de classes statique
-        #class_weights = np.array([1.0, 2.0, 2.5, 3.0, 1.5, 1.0, 2.0, 2.0])
+        #class_weights = np.array([3.2685854, 4.335359,  3.9264147, 1.4333558, 3.6178138, 2.190459,  1., 2.943684 ])
         
 #        if self.epoch == 0:
             #print("DEBUG - Premier epoch, sample_weights doit être 1 partout")  # ✅ Vérification
