@@ -115,21 +115,36 @@ class DataGenerator(Sequence):
         end = start + self.batch_size
         batch_image_paths = self.image_paths[start:end]
         batch_mask_paths = self.mask_paths[start:end]
-
+    
+        # ✅ Vérification que des fichiers sont bien sélectionnés
+        if len(batch_image_paths) == 0 or len(batch_mask_paths) == 0:
+            print(f"⚠️ Aucun fichier trouvé pour index {index} ! Batch vide ignoré.")
+            return np.array([]), np.array([])  
+    
         batch_images, batch_masks = [], []
-
+    
         for img_path, mask_path in zip(batch_image_paths, batch_mask_paths):
             img = load_image(img_path, self.image_size)
             mask = load_mask(mask_path, self.image_size)
-
+    
             if self.augmentation and np.random.rand() < self.augmentation_ratio:
                 augmented = self.augmentation(image=img, mask=mask)
                 img, mask = augmented['image'], augmented['mask']
-
+    
             batch_images.append(img)
             batch_masks.append(one_hot_encode_mask(mask, self.num_classes))
-
+    
+        # ✅ Vérification APRÈS la boucle
+        if len(batch_images) == 0 or len(batch_masks) == 0:
+            print(f"⚠️ Batch vide détecté après chargement pour index {index}, aucun traitement effectué.")
+            return np.array([]), np.array([])  
+    
+        # print(f"DEBUG - Index demandé : {index}")
+        # print(f"DEBUG - Nombre d'images dans le batch : {len(batch_images)}")
+        # print(f"DEBUG - Nombre de masques dans le batch : {len(batch_masks)}")
+    
         return np.stack(batch_images), np.stack(batch_masks)
+
 
     def _compute_class_weights(self, batch_masks: np.ndarray) -> np.ndarray:
         """
