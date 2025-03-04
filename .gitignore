@@ -185,3 +185,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 test_gpu.ipynb
+tensorboard_projector_plugin.ipynb

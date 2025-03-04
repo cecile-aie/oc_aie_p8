@@ -143,18 +143,18 @@ class DataGenerator(Sequence):
         
         # Si ce n'est pas le premier epoch, calcul des poids par classe
         pixel_counts = np.sum(batch_masks, axis=(0, 1, 2))
-
         # Éviter les divisions par 0 (si une classe est absente)
         pixel_counts = np.maximum(pixel_counts, 1)
+        
         # Calcul des poids en inversant les fréquences (plus rare = poids plus grand)
         class_weights = np.sum(pixel_counts) / pixel_counts  # Calcul des poids des classes
         # return class_weights / np.sum(class_weights)  # Normalisation classique par la somme
 
-            # Mise à l'échelle logarithmique (en ajoutant un epsilon pour éviter log(0))
+        # Mise à l'échelle logarithmique (en ajoutant un epsilon pour éviter log(0))
         epsilon = 1e-2  # Ajout d'un petit epsilon pour éviter log(0)
         log_class_weights = np.log(class_weights + epsilon)  # Logarithme des poids
 
-        # Mise à l'échelle pour avoir des poids compris entre 1 et 5
+        # Mise à l'échelle pour avoir des poids compris entre 1 et xx
         min_weight = 1
         max_weight = 5
     
@@ -187,7 +187,8 @@ class DataGenerator(Sequence):
         #print(f"DEBUG - Epoch: {self.epoch}")  # ✅ Ajout de debug
         
         # Possibilité d'utiliser une répartition de classes statique
-        #class_weights = np.array([3.2685854, 4.335359,  3.9264147, 1.4333558, 3.6178138, 2.190459,  1., 2.943684 ])
+       #  class_weights = [0.04731172, 0.0125408 , 0.02223516, 0.2754033 , 0.03222498,
+       # 0.13717382, 0.40695924, 0.06615099]
         
 #        if self.epoch == 0:
             #print("DEBUG - Premier epoch, sample_weights doit être 1 partout")  # ✅ Vérification
@@ -211,7 +212,7 @@ class DataGenerator(Sequence):
     def visualize_batch(self, num_images: int = 5) -> None:
         batch_images, batch_masks = self.__getitem__(0)[:2]
         num_images = min(num_images, len(batch_images))
-        fig, axes = plt.subplots(num_images, 2, figsize=(10, num_images * 5))
+        fig, axes = plt.subplots(num_images, 2, figsize=(6, num_images * 3))
 
         for i in range(num_images):
             axes[i, 0].imshow(batch_images[i])
