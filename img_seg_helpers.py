@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import backend as K
+from tensorflow.keras.models import Model
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -153,6 +154,11 @@ class EmbeddingLogger(Callback):
         }
         self.image_dir = os.path.join(log_dir, "projector_images")
         os.makedirs(self.image_dir, exist_ok=True)
+
+    @tf.function(reduce_retracing=True)  # Désactive le re-tracing inutile
+    def get_embeddings(self, model, images):
+        """Exécute predict() en évitant le re-tracing de TensorFlow."""
+        return model(images, training=False)  # training=False pour éviter le mode dropout/batch norm
         
     def get_dominant_class(self, mask):
         class_counts = np.sum(mask, axis=(0, 1))  # Compter les pixels par classe
@@ -233,11 +239,12 @@ class EmbeddingLogger(Callback):
                 inputs=self.model.input,
                 outputs=self.model.get_layer(self.layer_name).output
             )
-            embeddings = intermediate_layer_model.predict(images)
-    
+            
+            embeddings = self.get_embeddings(intermediate_layer_model, images)
+            
             if len(embeddings.shape) > 2:
-                embeddings = embeddings.reshape(embeddings.shape[0], -1)
-    
+                embeddings = tf.reshape(embeddings, [tf.shape(embeddings)[0], -1])
+
             for i in range(current_batch_size):
                 img_pil = Image.fromarray((images[i] * 255).astype(np.uint8))
                 mask_pil = Image.fromarray(colored_masks[i])
@@ -263,15 +270,15 @@ class EmbeddingLogger(Callback):
     
         with self.file_writer.as_default():
             # Extraire les biais de la couche spécifiée
-            layer = self.model.get_layer(self.layer_name)
-            if hasattr(layer, "bias") and layer.bias is not None:
-                biases = layer.bias.numpy()
-                # Normalisation entre 0 et 255 pour améliorer le contraste
-                biases_rescaled = 255 * (biases - np.min(biases)) / (np.max(biases) - np.min(biases) + 1e-8)
-                biases_rescaled = biases_rescaled.reshape(1, -1, 1)  # 1 ligne, N valeurs, 1 canal
-                biases_rescaled = biases_rescaled.astype(np.uint8)
-                tf.summary.image("bias/image", np.expand_dims(biases_rescaled, axis=0), step=epoch)
-                print(f"✔️ Image des biais enregistrée pour la couche {self.layer_name}.")
+#            layer = self.model.get_layer(self.layer_name)
+#            if hasattr(layer, "bias") and layer.bias is not None:
+#                biases = layer.bias.numpy()
+#                # Normalisation entre 0 et 255 pour améliorer le contraste
+#                biases_rescaled = 255 * (biases - np.min(biases)) / (np.max(biases) - np.min(biases) + 1e-8)
+#                biases_rescaled = biases_rescaled.reshape(1, -1, 1)  # 1 ligne, N valeurs, 1 canal
+#                biases_rescaled = biases_rescaled.astype(np.uint8)
+#                tf.summary.image("bias/image", np.expand_dims(biases_rescaled, axis=0), step=epoch)
+#                print(f"✔️ Image des biais enregistrée pour la couche {self.layer_name}.")
         
             tf.summary.scalar("Embeddings Mean", np.mean(embeddings_all), step=epoch)
             tf.summary.histogram("Embeddings", embeddings_all, step=epoch)
@@ -312,6 +319,55 @@ embeddings {{
 }}
             """)
         print(f"✔️ Config Projector générée avec taille {image_size[0]}x{image_size[1]} : {config_path}")
+
+# ---------------------------------------------------------------------------------------------------#
+
+def create_embedding_logger(log_dir, generator, model, layer_name, num_images=100, batch_size=16, class_colors=None):
+    """
+    Vérifie si layer_name existe dans model. Si non, sélectionne une couche de convolution au 1/3 de la profondeur.
+    
+    Args:
+        log_dir (str): Répertoire de logs.
+        generator: Générateur de validation.
+        model (tf.keras.Model): Modèle de segmentation.
+        layer_name (str): Nom de la couche à utiliser pour les embeddings.
+        num_images (int): Nombre d'images à analyser.
+        batch_size (int): Taille du batch.
+        class_colors (dict): Dictionnaire associant les classes aux couleurs.
+
+    Returns:
+        EmbeddingLogger: Instance de la classe `EmbeddingLogger` avec une couche validée.
+    """
+    # Liste des noms de couches dans le modèle
+    layer_names = [layer.name for layer in model.layers]
+    
+    # Vérifier si layer_name existe dans le modèle
+    if layer_name not in layer_names:
+        print(f"⚠️ La couche '{layer_name}' n'existe pas dans le modèle. Sélection d'une couche alternative...")
+
+        # Filtrer les couches de convolution uniquement
+        conv_layers = [layer.name for layer in model.layers if isinstance(layer, tf.keras.layers.Conv2D)]
+        
+        if not conv_layers:
+            raise ValueError("❌ Aucun couche de convolution trouvée dans le modèle.")
+
+        # Sélectionner une couche située au 1/3 de la liste des convolutions
+        index = len(conv_layers) // 3
+        layer_name = conv_layers[index]
+
+        print(f"✅ Nouvelle couche sélectionnée : '{layer_name}'")
+
+    # Créer et retourner l'instance de EmbeddingLogger
+    embedding_logger = EmbeddingLogger(
+        log_dir=log_dir,
+        generator=generator,
+        layer_name=layer_name,
+        num_images=num_images,
+        batch_size=batch_size,
+        class_colors=class_colors
+    )
+
+    return embedding_logger
 
 # ---------------------------------------------------------------------------------------------------#
 
@@ -433,6 +489,86 @@ def plot_loss_iou(history):
     plt.legend()
     plt.grid(True)
     
+    plt.tight_layout()
+    plt.show()
+
+# ---------------------------------------------------------------------------------------------------#
+
+def get_feature_extractor(model):
+    """
+    Crée un modèle tronqué qui extrait les sorties de toutes les couches convolutionnelles du modèle donné.
+    """
+    # Filtrer uniquement les couches avec des activations valides
+    layer_outputs = [layer.output for layer in model.layers if 'conv' in layer.name or 'softmax' in layer.name]
+    return Model(inputs=model.input, outputs=layer_outputs)
+
+def plot_feature_maps(model, image, mask, num_rows=3, num_cols=8):
+    """
+    Affiche les cartes de caractéristiques extraites par le modèle pour une image et un masque donnés.
+    Fonctionne pour tout modèle basé sur TensorFlow/Keras.
+    """
+    # Si le masque est en format one-hot, convertir en indices de classes
+    if mask.ndim == 3 and mask.shape[-1] > 1:
+        mask = np.argmax(mask, axis=-1)
+
+    # Étape 1 : Créer un extracteur de caractéristiques pour le modèle
+    feature_extractor = get_feature_extractor(model)
+
+    # Étape 2 : Passer l'image à travers le modèle tronqué
+    feature_maps = feature_extractor.predict(np.expand_dims(image, axis=0))
+
+    # Étape 3 : Préparer les cartes de caractéristiques pour affichage
+    feature_maps_resized = []
+    titles = []
+
+    for i, fmap in enumerate(feature_maps[:-1]):  # Exclure la dernière couche softmax pour les cartes
+        fmap = fmap[0]  # Retirer la dimension batch
+        if fmap.ndim == 3:
+            fmap = np.mean(fmap, axis=-1)  # Moyenne des canaux pour affichage
+        feature_maps_resized.append(fmap)
+        titles.append(feature_extractor.output_names[i])
+
+    # Calcul du nombre total de sous-graphes
+    total_plots = num_rows * num_cols
+    total_feature_maps = len(feature_maps_resized)
+
+    # Ajuster les dimensions si nécessaire
+    if total_feature_maps > total_plots:
+        num_rows = (total_feature_maps // num_cols) + 1
+        total_plots = num_rows * num_cols
+
+    # Affichage des cartes de caractéristiques
+    plt.figure(figsize=(15, 15))
+    for i, (feature_map, title) in enumerate(zip(feature_maps_resized, titles)):
+        if i < total_feature_maps:
+            plt.subplot(num_rows, num_cols, i + 1)
+            plt.title(title, fontsize=8)
+            plt.imshow(feature_map, cmap="inferno")
+            plt.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Étape 4 : Calculer le masque prédit
+    predicted_mask = np.argmax(feature_maps[-1][0], axis=-1)  # Dernière couche softmax
+
+    # Affichage final : image, masque réel et masque prédit
+    plt.figure(figsize=(15, 5))
+    plt.subplot(1, 3, 1)
+    plt.title("Image")
+    plt.imshow(image)
+    plt.axis('off')
+
+    plt.subplot(1, 3, 2)
+    plt.title("Masque réel")
+    plt.imshow(mask, cmap='inferno')
+    plt.axis('off')
+
+    plt.subplot(1, 3, 3)
+    plt.title("Masque prédit")
+    plt.imshow(predicted_mask, cmap='inferno')
+    plt.axis('off')
+
     plt.tight_layout()
     plt.show()
 
