@@ -81,6 +81,54 @@ def focal_loss(gamma=2., alpha=0.25):
 
 ##### ENTRAINEMENT (visualisation, callbacks) #################################################
 
+import numpy as np
+import matplotlib.pyplot as plt
+
+def display_target_image(val_gen, target_image_index):
+    """
+    Affiche une image spécifique et son masque associé à partir d'un générateur de validation.
+    
+    :param val_gen: Générateur fournissant des lots d'images et de masques
+    :param target_image_index: Index global de l'image cible
+    :return: L'image et le masque sélectionnés
+    """
+    image_count = 0
+    fixed_image = None
+    fixed_mask = None
+    
+    for sample_image, sample_mask in val_gen:
+        if image_count + len(sample_image) > target_image_index:
+            index_in_lot = target_image_index - image_count
+            fixed_image = sample_image[index_in_lot]
+            fixed_mask = sample_mask[index_in_lot]
+            break
+        image_count += len(sample_image)
+    
+    if fixed_image is None or fixed_mask is None:
+        print("Index hors limites du générateur.")
+        return None, None
+    
+    # Convertir le masque en format 2D
+    fixed_mask_visu = np.argmax(fixed_mask, axis=-1)
+    
+    # Affichage
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    
+    ax[0].imshow(fixed_image)
+    ax[0].set_title("Image Fixe")
+    ax[0].axis('off')
+    
+    ax[1].imshow(fixed_mask_visu, cmap='jet')
+    ax[1].set_title("Masque Fixe")
+    ax[1].axis('off')
+    
+    plt.show()
+    
+    return fixed_image, fixed_mask
+
+# ---------------------------------------------------------------------------------------------------#
+
+
 class MaskVisualizationCallback(tf.keras.callbacks.Callback):
     def __init__(self, sample_image, sample_mask, save_path="./training_masks"):
         self.sample_image = sample_image
@@ -494,13 +542,32 @@ def plot_loss_iou(history):
 
 # ---------------------------------------------------------------------------------------------------#
 
+
 def get_feature_extractor(model):
     """
-    Crée un modèle tronqué qui extrait les sorties de toutes les couches convolutionnelles du modèle donné.
+    Crée un modèle tronqué qui extrait les sorties des couches les plus intéressantes :
+    - Convolutions (`Conv2D`, `SeparableConv2D`)
+    - Normalisation (`BatchNormalization`)
+    - Activation (`Activation`)
+    - Pooling (`MaxPooling2D`, `GlobalAveragePooling2D`)
+    - Fusion (`Add`, `Concatenate`, `Multiply`)
     """
-    # Filtrer uniquement les couches avec des activations valides
-    layer_outputs = [layer.output for layer in model.layers if 'conv' in layer.name or 'softmax' in layer.name]
-    return Model(inputs=model.input, outputs=layer_outputs)
+    # Sélection des couches utiles pour l'affichage
+    layers_of_interest = (tf.keras.layers.Conv2D, 
+                          tf.keras.layers.SeparableConv2D, 
+                          tf.keras.layers.BatchNormalization, 
+                          tf.keras.layers.Activation, 
+                          tf.keras.layers.MaxPooling2D, 
+                          tf.keras.layers.GlobalAveragePooling2D, 
+                          tf.keras.layers.Add, 
+                          tf.keras.layers.Concatenate, 
+                          tf.keras.layers.Multiply)
+
+    layer_outputs = [layer.output for layer in model.layers if isinstance(layer, layers_of_interest)]
+
+    # Créer le modèle tronqué
+    return tf.keras.Model(inputs=model.input, outputs=layer_outputs)
+
 
 def plot_feature_maps(model, image, mask, num_rows=3, num_cols=8):
     """
@@ -517,42 +584,61 @@ def plot_feature_maps(model, image, mask, num_rows=3, num_cols=8):
     # Étape 2 : Passer l'image à travers le modèle tronqué
     feature_maps = feature_extractor.predict(np.expand_dims(image, axis=0))
 
+    # Vérification et conversion en liste si besoin
+    if not isinstance(feature_maps, list):
+        feature_maps = [feature_maps]  # Conversion si un seul élément
+
     # Étape 3 : Préparer les cartes de caractéristiques pour affichage
     feature_maps_resized = []
     titles = []
 
-    for i, fmap in enumerate(feature_maps[:-1]):  # Exclure la dernière couche softmax pour les cartes
+    for i, fmap in enumerate(feature_maps):
         fmap = fmap[0]  # Retirer la dimension batch
-        if fmap.ndim == 3:
-            fmap = np.mean(fmap, axis=-1)  # Moyenne des canaux pour affichage
+
+        # **Ignorer les cartes de caractéristiques 1D**
+        if fmap.ndim == 1:
+            print(f"⚠️ Ignoré : {feature_extractor.output_names[i]} (shape {fmap.shape})")
+            continue
+
+        # **Si plusieurs canaux, prendre la moyenne**
+        if fmap.ndim == 3 and fmap.shape[-1] > 1:
+            fmap = np.mean(fmap, axis=-1)
+
         feature_maps_resized.append(fmap)
         titles.append(feature_extractor.output_names[i])
 
+    # Vérifier qu'il y a bien des features à afficher
+    if len(feature_maps_resized) == 0:
+        print("⚠️ Aucune feature map trouvée ! Vérifiez les couches sélectionnées.")
+        return
+
     # Calcul du nombre total de sous-graphes
-    total_plots = num_rows * num_cols
     total_feature_maps = len(feature_maps_resized)
 
-    # Ajuster les dimensions si nécessaire
-    if total_feature_maps > total_plots:
-        num_rows = (total_feature_maps // num_cols) + 1
-        total_plots = num_rows * num_cols
+    # Ajustement dynamique du nombre de lignes
+    num_rows = max(1, (total_feature_maps // num_cols) + (1 if total_feature_maps % num_cols else 0))
+
+    # Ajustement de la taille de la figure pour éviter trop d’espacement
+    plt.figure(figsize=(num_cols * 2, num_rows * 2))
 
     # Affichage des cartes de caractéristiques
-    plt.figure(figsize=(15, 15))
     for i, (feature_map, title) in enumerate(zip(feature_maps_resized, titles)):
-        if i < total_feature_maps:
-            plt.subplot(num_rows, num_cols, i + 1)
-            plt.title(title, fontsize=8)
-            plt.imshow(feature_map, cmap="inferno")
-            plt.axis('off')
+        plt.subplot(num_rows, num_cols, i + 1)
+        plt.title(title, fontsize=8)
+        plt.imshow(feature_map, cmap="inferno")
+        plt.axis('off')
 
-    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.1, wspace=0.1)  # ✅ Réduction de l’espacement
     plt.show()
 
     # Étape 4 : Calculer le masque prédit
-    predicted_mask = np.argmax(feature_maps[-1][0], axis=-1)  # Dernière couche softmax
+    if feature_maps[-1].ndim == 4 and feature_maps[-1].shape[-1] > 1:  # Vérification si softmax présent
+        predicted_mask = np.argmax(feature_maps[-1], axis=-1).squeeze()
+    else:
+        print("⚠️ Aucune sortie softmax détectée, impossible d'afficher le masque prédit.")
+        predicted_mask = None
 
-    # Affichage final : image, masque réel et masque prédit
+    # Affichage final : image originale, masque réel et masque prédit
     plt.figure(figsize=(15, 5))
     plt.subplot(1, 3, 1)
     plt.title("Image")
@@ -564,13 +650,17 @@ def plot_feature_maps(model, image, mask, num_rows=3, num_cols=8):
     plt.imshow(mask, cmap='inferno')
     plt.axis('off')
 
-    plt.subplot(1, 3, 3)
-    plt.title("Masque prédit")
-    plt.imshow(predicted_mask, cmap='inferno')
-    plt.axis('off')
+    if predicted_mask is not None:
+        plt.subplot(1, 3, 3)
+        plt.title("Masque prédit")
+        plt.imshow(predicted_mask, cmap='inferno')
+        plt.axis('off')
 
     plt.tight_layout()
     plt.show()
+
+
+
 
 ##### QUALITE DES PREDICTIONS #################################################
 

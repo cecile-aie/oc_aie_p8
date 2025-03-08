@@ -94,6 +94,56 @@ class DataGenerator(Sequence):
         self.epoch = 0  # ✅ Option démarre à -1 pour éviter un premier `on_epoch_end()`
 #        self.on_epoch_end()  # ✅ Permet de bien démarrer avec `epoch = 0`
 
+    # =================================
+    # 🚀 Méthodes pour cloner et créer des variantes
+    # =================================
+    
+    @classmethod
+    def clone_with_modifications(cls, base_generator, augmentation_ratio=None, use_sample_weights=None, 
+                                 dynamic_class_weights=None, batch_size=None, image_size=None):
+        """Crée une copie d'un DataGenerator avec des modifications spécifiques."""
+        import copy
+        new_gen = copy.deepcopy(base_generator)
+    
+        if augmentation_ratio is not None:
+            new_gen.augmentation_ratio = augmentation_ratio
+    
+        if use_sample_weights is not None:
+            new_gen.use_sample_weights = use_sample_weights
+    
+        if dynamic_class_weights is not None:
+            new_gen.dynamic_class_weights = dynamic_class_weights
+    
+        if batch_size is not None:
+            new_gen.batch_size = batch_size
+    
+        if image_size is not None:
+            new_gen.image_size = image_size
+            new_gen.augmentation = get_augmentations(image_size) if new_gen.augmentation_ratio > 0 else None  # ⚠️ Recalcul des augmentations
+    
+        return new_gen
+
+
+    @classmethod
+    def from_preset(cls, base_generator, preset="default"):
+        """Crée une variante de DataGenerator basée sur un préréglage prédéfini."""
+        presets = {
+            "no_aug": {"augmentation_ratio": 0.0},
+            "no_weights": {"use_sample_weights": False},
+            "static_weights": {"dynamic_class_weights": False},
+            "full_aug": {"augmentation_ratio": 1.0}
+        }
+
+        if preset not in presets:
+            raise ValueError(f"Preset '{preset}' non reconnu. Choisissez parmi {list(presets.keys())}.")
+
+        return cls.clone_with_modifications(base_generator, **presets[preset])
+
+    # =================================
+    # 🚀 Méthodes classiques du DataGenerator
+    # =================================
+    
+
     def __len__(self) -> int:
         return int(np.ceil(len(self.image_paths) / self.batch_size))
 
