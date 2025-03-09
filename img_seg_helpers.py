@@ -20,22 +20,37 @@ import cv2  # Utilisé pour charger les images
 
 ##### METRIQUE #################################################
 
+@register_keras_serializable(package="Custom", name="IoUMean")
+class IoUMean(Metric):
+    def __init__(self, name="iou_mean", smooth=1e-6, **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.smooth = smooth
+        self.total_iou = self.add_weight(name="total_iou", initializer="zeros")
+        self.count = self.add_weight(name="count", initializer="zeros")
 
-def iou_mean(y_true, y_pred, smooth=1e-6):
-    """
-    Calcul de l'IoU pixel-wise pour des masques one-hot (y_true)
-    et des probabilités softmax (y_pred)
-    Moyenne de IoU sur toutes les classes
-    """
-    y_true = tf.cast(y_true, tf.float32)
-    y_pred = tf.cast(y_pred, tf.float32)
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.cast(y_pred, tf.float32)
 
-    intersection = tf.reduce_sum(y_true * y_pred, axis=[1, 2, 3])
-    union = tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred, axis=[1, 2, 3]) - intersection
+        intersection = tf.reduce_sum(y_true * y_pred, axis=[1, 2, 3])
+        union = tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred, axis=[1, 2, 3]) - intersection
 
-    iou = (intersection + smooth) / (union + smooth)
-    return tf.reduce_mean(iou)  # Moyenne sur le batch
+        iou = (intersection + self.smooth) / (union + self.smooth)
 
+        self.total_iou.assign_add(tf.reduce_sum(iou))
+        self.count.assign_add(tf.cast(tf.shape(y_true)[0], tf.float32))
+
+    def result(self):
+        return self.total_iou / (self.count + self.smooth)
+
+    def reset_state(self):
+        self.total_iou.assign(0)
+        self.count.assign(0)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"smooth": self.smooth})
+        return config
 
 ##### PERTE #################################################
 
@@ -547,25 +562,37 @@ class ImagePredictionLogger(Callback):
 # ---------------------------------------------------------------------------------------------------#
 
 class CustomEarlyStopping(tf.keras.callbacks.Callback):
-    def __init__(self, relative_threshold=0.01):  # Seuil relatif (1%)
+    def __init__(self, relative_threshold=0.01, patience=5):  
         super(CustomEarlyStopping, self).__init__()
         self.relative_threshold = relative_threshold
-        self.previous_loss = None
+        self.patience = patience
+        self.best_loss = float('inf')  # Meilleure perte rencontrée
+        self.wait = 0  
 
     def on_epoch_end(self, epoch, logs=None):
         if logs is None:
             return
         current_loss = logs.get("val_loss")
 
-        if self.previous_loss is not None and self.previous_loss > 0:
-            delta_loss = self.previous_loss - current_loss
-            relative_change = delta_loss / self.previous_loss  # Variation en %
+        if current_loss is None:
+            return
 
-            if delta_loss >= 0 and relative_change < self.relative_threshold:
-                print(f"\nArrêt de l'entraînement : amélioration relative ({relative_change:.2%}) inférieure au seuil ({self.relative_threshold:.2%})")
-                self.model.stop_training = True
+        # Calcul du changement relatif par rapport à la meilleure perte observée
+        delta_loss = self.best_loss - current_loss
+        relative_change = delta_loss / self.best_loss if self.best_loss > 0 else 0  
 
-        self.previous_loss = current_loss
+        if delta_loss >= 0:
+            if relative_change < self.relative_threshold:
+                self.wait += 1
+                print(f"\n⚠️ Avertissement : amélioration relative ({relative_change:.2%}) inférieure au seuil ({self.relative_threshold:.2%}) "
+                      f"({self.wait}/{self.patience} epochs)")
+            else:
+                self.wait = 0  # Reset patience si on améliore assez
+                self.best_loss = current_loss  # Mise à jour de la meilleure perte
+
+        if self.wait >= self.patience:
+            print("\n🛑 Arrêt de l'entraînement : patience atteinte sans amélioration significative")
+            self.model.stop_training = True
 
 # ---------------------------------------------------------------------------------------------------#
 
