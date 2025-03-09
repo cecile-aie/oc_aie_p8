@@ -1,5 +1,11 @@
 import tensorflow as tf
 from tensorflow.keras import backend as K
+from tensorflow.keras.losses import Loss
+from tensorflow.keras.metrics import Metric
+from tensorflow.keras.metrics import MeanIoU
+from tensorflow.keras.saving import register_keras_serializable
+from tensorflow.keras.utils import register_keras_serializable
+from segmentation_models.losses import DiceLoss
 from tensorflow.keras.models import Model
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +19,7 @@ from tensorflow.image import resize
 import cv2  # Utilisé pour charger les images
 
 ##### METRIQUE #################################################
+
 
 def iou_mean(y_true, y_pred, smooth=1e-6):
     """
@@ -29,13 +36,60 @@ def iou_mean(y_true, y_pred, smooth=1e-6):
     iou = (intersection + smooth) / (union + smooth)
     return tf.reduce_mean(iou)  # Moyenne sur le batch
 
-##### METRIQUE #################################################
 
-def tversky_loss(alpha=0.7, beta=0.3):
-    def loss(y_true, y_pred):
+##### PERTE #################################################
+
+@register_keras_serializable(package="Custom", name="DiceLoss")
+class CustomDiceLoss(tf.keras.losses.Loss):
+    def __init__(self, class_weights=None, beta=1.0, reduction="sum_over_batch_size", name="dice_loss"):
+        super().__init__(reduction=reduction, name=name)
+        self.class_weights = tf.constant(class_weights, dtype=tf.float32) if class_weights is not None else None
+        self.beta = beta
+
+    def call(self, y_true, y_pred, sample_weight=None):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.cast(y_pred, tf.float32)
+
+        intersection = tf.reduce_sum(y_true * y_pred, axis=[1, 2])
+        denominator = tf.reduce_sum(y_true, axis=[1, 2]) + tf.reduce_sum(y_pred, axis=[1, 2])
+
+        dice = (2. * intersection + 1e-7) / (denominator + 1e-7)
+        dice_loss = 1 - dice
+
+        # Appliquer les poids de classe
+        if self.class_weights is not None:
+            dice_loss *= self.class_weights
+
+        # Si `sample_weight` est fourni, l’appliquer à la perte
+        if sample_weight is not None:
+            dice_loss *= sample_weight
+
+        return tf.reduce_mean(dice_loss)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "class_weights": self.class_weights.numpy().tolist() if self.class_weights is not None else None,
+            "beta": self.beta
+        })
+        return config
+
+# Instancier une perte par défaut pour éviter l'import manuel
+dice_loss = CustomDiceLoss()
+
+# ---------------------------------------------------------------------------------------------------#
+
+@register_keras_serializable(package="Custom", name="TverskyLoss")
+class TverskyLoss(Loss):
+    def __init__(self, alpha=0.7, beta=0.3, reduction="sum_over_batch_size", name="tversky_loss"):
+        super().__init__(reduction=reduction, name=name)
+        self.alpha = alpha
+        self.beta = beta
+
+    def call(self, y_true, y_pred):
         y_true = tf.cast(y_true, tf.float32)
         y_pred = tf.clip_by_value(y_pred, 1e-7, 1.0)  # Éviter division par zéro
-        
+
         # Vérifier si y_true est one-hot, sinon le convertir
         if len(y_true.shape) == 3:  # (batch_size, height, width)
             y_true = tf.one_hot(tf.cast(y_true, tf.int32), depth=tf.shape(y_pred)[-1]) 
@@ -44,40 +98,48 @@ def tversky_loss(alpha=0.7, beta=0.3):
         TP = y_true * y_pred
         FP = (1 - y_true) * y_pred
         FN = y_true * (1 - y_pred)
-        
+
         # Réduction sur les axes de l'image et des classes, mais pas sur le batch
         TP = tf.reduce_sum(TP, axis=-1)  # Garder (batch_size, height, width)
         FP = tf.reduce_sum(FP, axis=-1)
         FN = tf.reduce_sum(FN, axis=-1)
-        
+
         # Calculer l'indice de Tversky par pixel
-        tversky_index = TP / (TP + alpha * FP + beta * FN + 1e-7)
+        tversky_index = TP / (TP + self.alpha * FP + self.beta * FN + 1e-7)
 
         # Retourner une perte compatible avec sample_weights (batch, height, width)
         return 1 - tversky_index
-    
-    return loss
+
+    def get_config(self):
+        """Permet la sauvegarde et rechargement automatique avec load_model()."""
+        config = super().get_config()
+        config.update({"alpha": self.alpha, "beta": self.beta})
+        return config
 
 # ---------------------------------------------------------------------------------------------------#
 
-def focal_loss(gamma=2., alpha=0.25):
-    """
-    Focal Loss for multilabel classification.
-    Parameters:
-    gamma -- focusing parameter. Default is 2.
-    alpha -- balancing parameter. Default is 0.25, can be a class_weights np array
-    """
-    def focal_loss_fixed(y_true, y_pred):
-        # Calculate cross entropy
+@register_keras_serializable(package="Custom", name="FocalLoss")
+class FocalLoss(Loss):
+    def __init__(self, gamma=2., alpha=0.25, name="FocalLoss"):
+        super().__init__(name=name)
+        self.gamma = gamma
+        self.alpha = alpha
+
+    def call(self, y_true, y_pred):
+        # Calcul de l'entropie croisée
         cross_entropy = -y_true * K.log(y_pred + K.epsilon())
         
-        # Calculate the focal weight
-        weight = alpha * K.pow(1 - y_pred, gamma)
+        # Calcul du poids focal
+        weight = self.alpha * K.pow(1 - y_pred, self.gamma)
         
-        # Apply the weight to cross entropy
+        # Application du poids sur l'entropie croisée
         focal_loss = K.sum(weight * cross_entropy, axis=-1)
         return focal_loss
-    return focal_loss_fixed
+
+    def get_config(self):
+        """ Permet d'enregistrer correctement les hyperparamètres gamma et alpha """
+        return {"gamma": self.gamma, "alpha": self.alpha}
+
 
 ##### ENTRAINEMENT (visualisation, callbacks) #################################################
 
