@@ -21,6 +21,8 @@ __pycache__/
 *.gpg
 *.png
 *.odt
+*.csv
+*.keras
 
 # Distribution / packaging
 .Python
