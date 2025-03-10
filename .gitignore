@@ -186,3 +186,4 @@ cython_debug/
 .pypirc
 test_gpu.ipynb
 tensorboard_projector_plugin.ipynb
+Déploiement/UX-UI.odt
