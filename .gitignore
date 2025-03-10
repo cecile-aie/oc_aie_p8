@@ -20,6 +20,7 @@ __pycache__/
 *.tar
 *.gpg
 *.png
+*.odt
 
 # Distribution / packaging
 .Python
@@ -187,3 +188,4 @@ cython_debug/
 test_gpu.ipynb
 tensorboard_projector_plugin.ipynb
 Déploiement/UX-UI.odt
+P8_Modelisation_all_models_tested.ipynb
