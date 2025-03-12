@@ -283,7 +283,7 @@ class DataGenerator(Sequence):
             axes[i, 0].imshow(batch_images[i])
             axes[i, 0].set_title("Image")
             axes[i, 0].axis("off")
-            axes[i, 1].imshow(np.argmax(batch_masks[i], axis=-1), cmap="inferno")
+            axes[i, 1].imshow(np.argmax(batch_masks[i], axis=-1), cmap="jet")
             axes[i, 1].set_title("Mask (decoded)")
             axes[i, 1].axis("off")
 

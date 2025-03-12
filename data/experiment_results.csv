@@ -1,3 +1,0 @@
-Modèle,Backbone,Perte,Variante Train,Training time (sec),Meilleure Epoch,IoU Validation,Loss Validation,IoU Test,IoU Human,IoU Object,Temps Inférence Moyen (ms),Log Tensorboard
-FPN,efficientnetb3,categorical_crossentropy,default,329,0,0.5812,0.6051,0.4877,0.0,0.0001,33,./logs/fit/FPN_efficientnetb3_categorical_crossentropy_default_default_20250311-195403
-FPN,mobilenetv2,categorical_crossentropy,default,253,0,0.549,0.7844,0.5766,0.0,0.0,24,./logs/fit/FPN_mobilenetv2_categorical_crossentropy_default_default_20250311-203107

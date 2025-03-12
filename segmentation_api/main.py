@@ -37,6 +37,24 @@ def custom_openapi():
             }
         }
 
+    # ✅ Correction de l'indentation ici !
+    if "/api/predict" in openapi_schema["paths"]:
+        openapi_schema["paths"]["/api/predict"]["post"]["requestBody"] = {
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "file": {
+                                "type": "string",
+                                "format": "binary"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 

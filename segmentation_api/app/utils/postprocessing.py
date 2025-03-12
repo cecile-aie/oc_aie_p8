@@ -9,9 +9,23 @@ def encode_image(image_bytes):
     return base64.b64encode(image_bytes).decode()
 
 def encode_mask(mask: np.ndarray):
-    """Encode un masque en base64 pour un retour JSON"""
-    mask_bytes = mask.astype(np.uint8).tobytes()
-    return base64.b64encode(mask_bytes).decode("utf-8")
+    """Encode un masque multi-classes en base64 pour un retour JSON"""
+    # Vérifier si le masque est un tenseur (multi-classes)
+    if mask.ndim == 3 and mask.shape[-1] > 1:
+        mask_2d = mask.argmax(axis=-1).astype(np.uint8)  # Convertir en indices de classes
+    else:
+        mask_2d = mask.astype(np.uint8)  # Si c'est déjà une image 2D, on garde tel quel
+
+    # Convertir en image
+    mask_image = Image.fromarray(mask_2d)
+
+    # Sauvegarde en mémoire
+    img_io = io.BytesIO()
+    mask_image.save(img_io, format="PNG")
+    img_io.seek(0)
+
+    # Encodage base64
+    return base64.b64encode(img_io.read()).decode("utf-8")
 
 def encode_colored_mask(mask: np.ndarray):
     """Transforme un masque de segmentation en image couleur (RGB)"""

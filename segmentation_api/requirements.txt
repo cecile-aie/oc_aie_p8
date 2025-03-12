@@ -5,6 +5,7 @@ numpy
 pillow
 pandas
 scikit-learn
+matplotlib
 pyquaternion==0.9.9
 # albumentations==2.0.4
 segmentation_models==1.0.1
