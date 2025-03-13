@@ -30,13 +30,32 @@
             justify-content: center;
             align-items: center;
         }
+        .example-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .example-container img {
+            width: 300px;
+            margin: 10px;
+            border: 1px solid #ddd;
+        }
     </style>
 </head>
 <body class="container mt-4">
     <h1 class="text-center">Segmentation d'Images</h1>
     <p class="text-center">Sélectionnez une image ou un lot d'images pour la segmentation.</p>
 
-    <div class="text-center">
+    <div class="example-container">
+        <h3>Exemple de segmentation</h3>
+        <div>
+            <img src="/api/example_image" alt="Image Exemple">
+            <img src="/example-mask" alt="Masque Réel">
+            <img id="predictedMask" src="" alt="Masque Prédit" style="display:none;">
+        </div>
+        <button class="btn btn-info" onclick="fetchExamplePrediction()">Obtenir la Prédiction</button>
+    </div>
+
+    <div class="text-center mt-4">
         <button class="btn btn-primary" onclick="document.getElementById('singleUpload').click()">Uploader une Image</button>
         <button class="btn btn-secondary" onclick="document.getElementById('batchUpload').click()">Uploader un Lot d'Images</button>
         <input type="file" id="singleUpload" style="display: none;" accept="image/*" onchange="uploadSingle()">
@@ -53,6 +72,18 @@
         }
         function hideLoader() {
             document.getElementById("loadingOverlay").style.display = "none";
+        }
+
+        function fetchExamplePrediction() {
+            showLoader();
+            fetch("/example-predict")
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("predictedMask").src = data.mask_url;
+                    document.getElementById("predictedMask").style.display = "inline-block";
+                    hideLoader();
+                })
+                .catch(() => hideLoader());
         }
 
         function uploadSingle() {

@@ -13,7 +13,7 @@ app = Flask(__name__)
 # API_URL_BATCH = "https://ton-api-fastapi.com/predict-batch"
 # Liens vers l'API locale dans le docker
 API_URL_SINGLE = "http://localhost:8000/predict"  
-API_URL_BATCH = "http://localhost:8000/predict-batch"
+API_URL_BATCH = "http://localhost:8000/batch_predict"
 
 
 
