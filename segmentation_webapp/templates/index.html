@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segmentation d'Images</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body class="container mt-4">
+    <h1 class="text-center">Segmentation d'Images</h1>
+    <p class="text-center">Sélectionnez une image ou un lot d'images pour la segmentation.</p>
+
+    <div class="text-center">
+        <button class="btn btn-primary" onclick="document.getElementById('singleUpload').click()">Uploader une Image</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('batchUpload').click()">Uploader un Lot d'Images</button>
+        <input type="file" id="singleUpload" style="display: none;" accept="image/*" onchange="uploadSingle()">
+        <input type="file" id="batchUpload" style="display: none;" accept="image/*" multiple onchange="uploadBatch()">
+    </div>
+
+    <div class="overlay" id="loadingOverlay">
+        <div class="loader"></div>
+    </div>
+
+    <script>
+        function showLoader() {
+            document.getElementById("loadingOverlay").style.display = "flex";
+        }
+        function hideLoader() {
+            document.getElementById("loadingOverlay").style.display = "none";
+        }
+
+        function uploadSingle() {
+            showLoader();
+            let file = document.getElementById("singleUpload").files[0];
+            let formData = new FormData();
+            formData.append("file", file);
+            
+            fetch("/single", {
+                method: "POST",
+                body: formData
+            }).then(response => response.text())
+            .then(data => {
+                document.body.innerHTML = data;
+                hideLoader();
+            }).catch(() => hideLoader());
+        }
+
+        function uploadBatch() {
+            showLoader();
+            let files = document.getElementById("batchUpload").files;
+            let formData = new FormData();
+            
+            for (let i = 0; i < files.length; i++) {
+                formData.append("files", files[i]);
+            }
+            
+            fetch("/batch", {
+                method: "POST",
+                body: formData
+            }).then(response => response.blob())
+            .then(blob => {
+                let url = window.URL.createObjectURL(blob);
+                let a = document.createElement("a");
+                a.href = url;
+                a.download = "segmentation_results.zip";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                hideLoader();
+            }).catch(() => hideLoader());
+        }
+    </script>
+</body>
+</html>
