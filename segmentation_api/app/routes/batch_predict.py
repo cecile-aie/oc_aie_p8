@@ -1,76 +1,82 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
-from typing import List
+from fastapi import APIRouter, UploadFile, File
+import numpy as np
 import time
+from PIL import Image
 import io
 import os
-import base64
-import numpy as np
-from PIL import Image
-from fastapi.responses import FileResponse
+from typing import List
+
+from app.models.model_loader import model, CLASS_INFO, CLASS_COLORS
 from app.utils.preprocessing import preprocess_image
-from app.utils.postprocessing import encode_colored_mask
-from app.models.model_loader import model, CLASS_INFO
+from app.utils.postprocessing import encode_mask, encode_colored_mask
 
 router = APIRouter()
 
-@router.post("/batch_predict")
-async def batch_predict(files: List[UploadFile]):
-    """Effectue une prédiction en batch sur plusieurs images et retourne les URLs des masques générés"""
-    
-    start_time = time.time()
-    
-    if not files:
-        raise HTTPException(status_code=400, detail="Aucune image reçue.")
+# Dossier temporaire pour stocker les prédictions batch
+DATA_DIR = "data"
+BATCH_PREDICTIONS_DIR = os.path.join(DATA_DIR, "batch_predictions")
 
+# S'assurer que le dossier existe
+os.makedirs(BATCH_PREDICTIONS_DIR, exist_ok=True)
+
+# Fonction de prédiction batch avec temps par image
+def batch_predict(images: List[Image.Image]):
+    """Effectue la prédiction sur plusieurs images et retourne les résultats indexés avec leur temps de calcul."""
     results = []
+    total_start_time = time.time()  # Début du temps total d'inférence
 
-    for idx, file in enumerate(files):
-        try:
-            image = Image.open(io.BytesIO(await file.read())).convert("RGB")
-            input_data = preprocess_image(image)
+    for idx, image in enumerate(images):
+        image_array = preprocess_image(image)
 
-            # Prédiction
-            mask = model.predict(input_data)[0]
-            inference_time = (time.time() - start_time) * 1000  # ms
+        # Mesure du temps d'inférence individuel
+        start_time = time.time()
+        prediction = model.predict(image_array)[0]  # Prédiction (output shape: (256,256,8))
+        end_time = time.time()
+        elapsed_time_ms = (end_time - start_time) * 1000  # Temps en millisecondes
 
-            # 🔥 Génération du masque en niveaux de gris
-            mask_2d = mask.argmax(axis=-1).astype(np.uint8)
-            mask_image = Image.fromarray(mask_2d)
-            mask_path = f"data/prediction_mask_{idx}.png"
-            mask_image.save(mask_path)
+        mask = prediction.argmax(axis=-1).astype(np.uint8)
 
-            # 🔥 Génération et sauvegarde du masque coloré via `encode_colored_mask()`
-            encoded_colored = encode_colored_mask(mask_2d)
-            mask_colored_path = f"data/prediction_mask_colored_{idx}.png"
-            with open(mask_colored_path, "wb") as f:
-                f.write(base64.b64decode(encoded_colored))
+        # Sauvegarde des fichiers
+        mask_path = os.path.join(BATCH_PREDICTIONS_DIR, f"predict_mask_{idx}.png")
+        color_mask_path = os.path.join(BATCH_PREDICTIONS_DIR, f"colored_predict_mask_{idx}.png")
 
-            results.append({
-                "mask_url": f"/api/prediction_mask_{idx}",  # URL du masque en niveaux de gris
-                "mask_colored_url": f"/api/prediction_mask_colored_{idx}"  # URL du masque coloré
-            })
+        Image.fromarray(mask).save(mask_path)  # Masque en niveaux de gris
 
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        # Création du masque coloré
+        h, w = mask.shape
+        color_mask = np.zeros((h, w, 3), dtype=np.uint8)
+        for class_idx, color in enumerate(CLASS_COLORS):
+            color_mask[mask == class_idx] = color
+        Image.fromarray(color_mask).save(color_mask_path)  # Masque coloré
+
+        results.append({
+            "index": idx,
+            "elapsed_time_ms": elapsed_time_ms,  # Temps d'inférence individuel
+            "grayscale_mask": encode_mask(mask),
+            "colored_mask": encode_colored_mask(mask)
+        })
+
+    total_elapsed_time_ms = (time.time() - total_start_time) * 1000  # Temps total d'inférence
 
     return {
-        "batch_size": len(files),
-        "inference_time": time.time() - start_time,
+        "message": "Prédictions effectuées avec succès",
+        "total_elapsed_time_ms": total_elapsed_time_ms,
+        "legend": CLASS_INFO,
         "results": results
     }
 
-@router.get("/prediction_mask_{idx:int}")
-async def get_prediction_mask(idx: int):
-    """Retourne le masque de segmentation en niveaux de gris pour une image spécifique"""
-    mask_path = f"data/prediction_mask_{idx}.png"
-    if not os.path.exists(mask_path):
-        raise HTTPException(status_code=404, detail="Aucun masque généré")
-    return FileResponse(mask_path, media_type="image/png")
+# Route pour traiter plusieurs images
+@router.post("/batch_predict")
+async def batch_predict_uploaded(files: List[UploadFile] = File(...)):
+    """Prédiction sur un lot d'images envoyées par l'utilisateur."""
+    images = []
 
-@router.get("/prediction_mask_colored_{idx:int}")
-async def get_prediction_mask_colored(idx: int):
-    """Retourne le masque coloré pour une image spécifique"""
-    mask_colored_path = f"data/prediction_mask_colored_{idx}.png"
-    if not os.path.exists(mask_colored_path):
-        raise HTTPException(status_code=404, detail="Aucun masque coloré généré")
-    return FileResponse(mask_colored_path, media_type="image/png")
+    for file in files:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents))
+        images.append(image)
+
+    if not images:
+        return {"error": "Aucune image reçue"}
+
+    return batch_predict(images)

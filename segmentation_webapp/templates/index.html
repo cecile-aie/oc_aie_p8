@@ -4,128 +4,81 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Segmentation d'Images</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
-        .loader {
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid #3498db;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            display: none;
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .container {
+            width: 70%;
+            margin: auto;
         }
-        .overlay {
+        #output-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 20px;
+            gap: 30px;
+        }
+        .legend {
+            text-align: left;
+            width: 300px;
+        }
+        .overlay-container {
+            position: relative;
+            display: inline-block;
+            width: 256px;
+            height: 256px;
+        }
+        .overlay-container img {
             position: absolute;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
         }
-        .example-container {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .example-container img {
-            width: 300px;
-            margin: 10px;
-            border: 1px solid #ddd;
+        .overlay {
+            opacity: 0.3; /* Transparence augmentée pour mieux voir l'image originale */
         }
     </style>
 </head>
-<body class="container mt-4">
-    <h1 class="text-center">Segmentation d'Images</h1>
-    <p class="text-center">Sélectionnez une image ou un lot d'images pour la segmentation.</p>
+<body>
+    <h1>Segmentation d'Images</h1>
+    <p>Choisissez une image à segmenter :</p>
 
-    <div class="example-container">
-        <h3>Exemple de segmentation</h3>
-        <div>
-            <img src="/api/example_image" alt="Image Exemple">
-            <img src="/example-mask" alt="Masque Réel">
-            <img id="predictedMask" src="" alt="Masque Prédit" style="display:none;">
+    <form action="/" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept="image/*" required>
+        <button type="submit">Segmenter</button>
+    </form>
+
+    <br>
+
+    <button disabled>Segmenter un Batch (à venir)</button>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
+    {% if result %}
+        <div id="output-container">
+            <!-- Image d'origine avec superposition du masque coloré -->
+            <div class="overlay-container">
+                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
+                <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
+            </div>
+
+            <!-- Légende et temps d'inférence -->
+            <div class="legend">
+                <h3>Légende des classes</h3>
+                <ul>
+                    {% for key, value in result["legend"].items() %}
+                        <li style="color: rgb({{ value['color'][0] }}, {{ value['color'][1] }}, {{ value['color'][2] }})">
+                            {{ value['name'] }}
+                        </li>
+                    {% endfor %}
+                </ul>
+                <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
+            </div>
         </div>
-        <button class="btn btn-info" onclick="fetchExamplePrediction()">Obtenir la Prédiction</button>
-    </div>
-
-    <div class="text-center mt-4">
-        <button class="btn btn-primary" onclick="document.getElementById('singleUpload').click()">Uploader une Image</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('batchUpload').click()">Uploader un Lot d'Images</button>
-        <input type="file" id="singleUpload" style="display: none;" accept="image/*" onchange="uploadSingle()">
-        <input type="file" id="batchUpload" style="display: none;" accept="image/*" multiple onchange="uploadBatch()">
-    </div>
-
-    <div class="overlay" id="loadingOverlay">
-        <div class="loader"></div>
-    </div>
-
-    <script>
-        function showLoader() {
-            document.getElementById("loadingOverlay").style.display = "flex";
-        }
-        function hideLoader() {
-            document.getElementById("loadingOverlay").style.display = "none";
-        }
-
-        function fetchExamplePrediction() {
-            showLoader();
-            fetch("/example-predict")
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById("predictedMask").src = data.mask_url;
-                    document.getElementById("predictedMask").style.display = "inline-block";
-                    hideLoader();
-                })
-                .catch(() => hideLoader());
-        }
-
-        function uploadSingle() {
-            showLoader();
-            let file = document.getElementById("singleUpload").files[0];
-            let formData = new FormData();
-            formData.append("file", file);
-            
-            fetch("/single", {
-                method: "POST",
-                body: formData
-            }).then(response => response.text())
-            .then(data => {
-                document.body.innerHTML = data;
-                hideLoader();
-            }).catch(() => hideLoader());
-        }
-
-        function uploadBatch() {
-            showLoader();
-            let files = document.getElementById("batchUpload").files;
-            let formData = new FormData();
-            
-            for (let i = 0; i < files.length; i++) {
-                formData.append("files", files[i]);
-            }
-            
-            fetch("/batch", {
-                method: "POST",
-                body: formData
-            }).then(response => response.blob())
-            .then(blob => {
-                let url = window.URL.createObjectURL(blob);
-                let a = document.createElement("a");
-                a.href = url;
-                a.download = "segmentation_results.zip";
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                hideLoader();
-            }).catch(() => hideLoader());
-        }
-    </script>
+    {% endif %}
 </body>
 </html>

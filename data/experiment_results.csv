@@ -4,3 +4,6 @@ Unet,vgg16,categorical_crossentropy,default,8640,29,0.7635,0.3147,0.7583,0.344,0
 Unet,vgg16,dice_loss,default,12600,56,0.8393,0.2487,0.6721,0.404,0.2419,20,./logs/fit/Unet_vgg16_dice_loss_default_default_20250313-001104
 Unet,vgg16,dice_loss_weighted,default,8460,74,0.8444,0.5148,0.6859,0.3764,0.2447,21,./logs/fit/Unet_vgg16_dice_loss_weighted_default_default_20250313-033755
 Unet,vgg16,focal_loss,default,5957,16,0.585,0.4584,0.4443,0.3837,0.1285,20,./logs/fit/Unet_vgg16_focal_loss_default_default_20250313-170926
+Unet,vgg16,dice_loss,no_augmentation,9340,34,0.8421,0.2476,0.7096,0.4174,0.2292,21,./logs/fit/Unet_vgg16_dice_loss_no_augmentation_default_20250313-214648
+Unet,vgg16,dice_loss,no_weights,14354,68,0.8415,0.2452,0.6633,0.3387,0.2459,20,./logs/fit/Unet_vgg16_dice_loss_no_weights_default_20250314-002303
+Unet,vgg16,dice_loss,dynamic_weights,14206,54,0.8423,0.2434,0.6802,0.4315,0.2402,22,./logs/fit/Unet_vgg16_dice_loss_dynamic_weights_default_20250314-042251

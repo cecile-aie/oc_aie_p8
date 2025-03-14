@@ -98,7 +98,7 @@ target/
 # IPython
 profile_default/
 ipython_config.py
-# P8_Modelisation.ipynb
+P8_Modelisation.ipynb
 
 
 # pyenv
@@ -192,3 +192,4 @@ test_gpu.ipynb
 tensorboard_projector_plugin.ipynb
 Déploiement/UX-UI.odt
 P8_Modelisation_all_models_tested.ipynb
+P8_Modelisation.ipynb
