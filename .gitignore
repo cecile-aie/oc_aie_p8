@@ -3,7 +3,7 @@ CamVid/
 data/gtCoarse
 data/gtFine
 data/leftImg8bit
-models
+/models
 training_masks
 .virtual_documents
 anaconda_projects/db
@@ -21,7 +21,6 @@ __pycache__/
 *.gpg
 *.png
 *.odt
-*.keras
 
 # Distribution / packaging
 .Python
@@ -189,8 +188,6 @@ cython_debug/
 .pypirc
 test_gpu.ipynb
 tensorboard_projector_plugin.ipynb
-Déploiement/UX-UI.odt
+deploiement/UX-UI.odt
 P8_Modelisation_all_models_tested.ipynb
-AWS_models.pem
-webapp.tar.gz
 backup_experimentations.ipynb
