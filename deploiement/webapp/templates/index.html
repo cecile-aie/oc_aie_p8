@@ -15,19 +15,20 @@
             margin: auto;
         }
         #output-container {
-            display: flex;
-            justify-content: space-around;
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Deux colonnes */
+            grid-template-rows: auto auto; /* Deux lignes */
+            gap: 20px;
+            justify-content: center;
             align-items: center;
             margin-top: 20px;
-            gap: 30px;
         }
-        .legend {
-            text-align: left;
-            width: 300px;
+        .image-container {
+            display: flex;
+            justify-content: center;
         }
         .overlay-container {
             position: relative;
-            display: inline-block;
             width: 256px;
             height: 256px;
         }
@@ -39,20 +40,61 @@
         .overlay {
             opacity: 0.3; /* Transparence augmentée pour mieux voir l'image originale */
         }
+        .legend {
+            text-align: left;
+            width: 300px;
+        }
+        #submit-button {
+            display: none;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px 20px;
+            margin-top: 10px;
+        }
+        #preview-container {
+            margin-top: 20px;
+        }
+        #preview-image {
+            max-width: 100%;
+            height: 256px;
+            display: none;
+            margin-top: 10px;
+        }
     </style>
+    <script>
+        function toggleButton() {
+            var fileInput = document.getElementById('file-input');
+            var submitButton = document.getElementById('submit-button');
+            var previewImage = document.getElementById('preview-image');
+            
+            if (fileInput.files.length) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                }
+                reader.readAsDataURL(fileInput.files[0]);
+                submitButton.style.display = 'inline-block';
+            } else {
+                previewImage.style.display = 'none';
+                submitButton.style.display = 'none';
+            }
+        }
+    </script>
 </head>
 <body>
     <h1>Segmentation d'Images</h1>
     <p>Choisissez une image à segmenter :</p>
 
     <form action="/" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept="image/*" required>
-        <button type="submit">Segmenter</button>
+        <input type="file" id="file-input" name="file" accept="image/*" required onchange="toggleButton()">
+        <div id="preview-container">
+            <img id="preview-image" alt="Prévisualisation de l'image">
+        </div>
+        <button type="submit" id="submit-button">Segmenter</button>
     </form>
 
     <br>
-
-    <button disabled>Segmenter un Batch (à venir)</button>
 
     {% if error %}
         <p style="color: red;">{{ error }}</p>
@@ -60,14 +102,24 @@
 
     {% if result %}
         <div id="output-container">
-            <!-- Image d'origine avec superposition du masque coloré -->
-            <div class="overlay-container">
-                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
-                <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
+            <!-- Ligne 1 : Image originale en haut à gauche -->
+            <div class="image-container" style="grid-column: 1; grid-row: 1;">
+                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine" style="display: block; height: 256px;">
             </div>
 
-            <!-- Légende et temps d'inférence -->
-            <div class="legend">
+            <!-- Espace vide en haut à droite -->
+            <div style="grid-column: 2; grid-row: 1;"></div>
+
+            <!-- Ligne 2 : Image segmentée en bas à gauche -->
+            <div class="image-container" style="grid-column: 1; grid-row: 2;">
+                <div class="overlay-container">
+                    <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
+                    <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
+                </div>
+            </div>
+
+            <!-- Ligne 2 : Légende et temps d'inférence en bas à droite -->
+            <div class="legend" style="grid-column: 2; grid-row: 2;">
                 <h3>Légende des classes</h3>
                 <ul>
                     {% for key, value in result["legend"].items() %}
