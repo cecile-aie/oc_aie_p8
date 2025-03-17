@@ -20,7 +20,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/p8
+            cd ~/p8/deploiement
             git pull origin main
             docker-compose down
             docker-compose up --build -d
