@@ -36,7 +36,7 @@ def index():
 
                     # 🔹 Encodage de l'image originale pour affichage
                     image = Image.open(file.stream).convert("RGB")  # Convertir en RGB (évite les problèmes transparence)
-                    image = image.resize((256, 256))  # Redimensionner l'image originale
+                    image = image.resize((256, 256))  # Redimensionne l'image originale
 
                     image_bytes = io.BytesIO()
                     image.save(image_bytes, format="PNG")  # Sauvegarde en mémoire
