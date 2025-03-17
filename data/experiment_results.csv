@@ -7,3 +7,9 @@ Unet,vgg16,focal_loss,default,5957,16,0.585,0.4584,0.4443,0.3837,0.1285,20,./log
 Unet,vgg16,dice_loss,no_augmentation,9340,34,0.8421,0.2476,0.7096,0.4174,0.2292,21,./logs/fit/Unet_vgg16_dice_loss_no_augmentation_default_20250313-214648
 Unet,vgg16,dice_loss,no_weights,14354,68,0.8415,0.2452,0.6633,0.3387,0.2459,20,./logs/fit/Unet_vgg16_dice_loss_no_weights_default_20250314-002303
 Unet,vgg16,dice_loss,dynamic_weights,14206,54,0.8423,0.2434,0.6802,0.4315,0.2402,22,./logs/fit/Unet_vgg16_dice_loss_dynamic_weights_default_20250314-042251
+Unet,resnet50,dice_loss,dynamic_weights,9946,33,0.8287,0.2666,0.7247,0.4153,0.2304,25,./logs/fit/Unet_resnet50_dice_loss_dynamic_weights_default_20250314-213627
+Unet,resnet101,dice_loss,dynamic_weights,15050,59,0.833,0.2612,0.7101,0.4223,0.2155,35,./logs/fit/Unet_resnet101_dice_loss_dynamic_weights_default_20250315-115424
+Unet,mobilenetv2,dice_loss,dynamic_weights,15187,60,0.8289,0.2676,0.7347,0.4418,0.224,25,./logs/fit/Unet_mobilenetv2_dice_loss_dynamic_weights_default_20250315-160624
+Unet,efficientnetb3,dice_loss,dynamic_weights,13410,47,0.8372,0.2499,0.7468,0.4393,0.2579,34,./logs/fit/Unet_efficientnetb3_dice_loss_dynamic_weights_default_20250316-071458
+Unet,vgg16,dice_loss,smaller_batch,15513,58,0.8434,0.2402,0.7001,0.4414,0.2512,24,./logs/fit/Unet_vgg16_dice_loss_smaller_batch_smaller_batch_20250316-112027
+FNP,mobilenetv2,dice_loss,dynamic_weights,19161,90,0.8214,0.2612,0.6997,0.3817,0.2148,22,./logs/fit/FPN_mobilenetv2_dice_loss_dynamic_weights_default_20250316-183315

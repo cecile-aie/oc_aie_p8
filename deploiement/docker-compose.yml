@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
+    environment:
+      - MODEL_PATH=/app/app/model/segmentation_model.keras  # Chemin du modèle
+
+  web:
+    build: ./webapp
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./webapp:/app
+    depends_on:
+      - api
+    environment:
+      - API_URL=http://api:8000/predict  # Communication entre les services
