@@ -8,11 +8,8 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# 🔹 Détection de l'environnement : local ou déploiement (PythonAnywhere)
-if "PYTHONANYWHERE_DOMAIN" in os.environ:
-    API_URL = "http://54.173.58.174:8000/predict"  # 🔥 URL de l'API FastAPI sur AWS (remplace par ton IP EC2)
-else:
-    API_URL = os.getenv("API_URL", "http://api:8000/predict")  # 🔥 API locale pour test en local
+# 🔹 Détection automatique du bon environnement (Docker Compose ou test en local)
+API_URL = os.getenv("API_URL", "http://api:8000/predict")  # Utilisation de l’alias réseau Docker
 
 @app.route("/", methods=["GET", "POST"])
 def index():
