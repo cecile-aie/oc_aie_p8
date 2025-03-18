@@ -94,7 +94,28 @@
         }
         function toggleGtSize() {
             var gtMask = document.getElementById('gt-mask');
-            gtMask.classList.toggle('gt-square');
+
+            if (!gtMask) return;  // Sécurité : éviter toute erreur si l'élément n'existe pas
+
+            // Stocker la taille initiale au chargement (adaptée à la hauteur de la colonne)
+            if (!gtMask.dataset.loadedWidth) {
+                gtMask.dataset.loadedWidth = gtMask.width;
+                gtMask.dataset.loadedHeight = gtMask.height;
+            }
+
+            // Vérifier si l'image est réduite à 256x256 ou à sa taille ajustée à la colonne
+            if (gtMask.classList.contains('gt-reduced')) {
+                // Remettre à la taille initiale ajustée (largeur proportionnelle à la hauteur de colonne)
+                gtMask.style.width = gtMask.dataset.loadedWidth + "px";
+                gtMask.style.height = gtMask.dataset.loadedHeight + "px";
+            } else {
+                // Réduire à 256x256
+                gtMask.style.width = "256px";
+                gtMask.style.height = "256px";
+            }
+
+            // Basculer la classe pour suivre l'état
+            gtMask.classList.toggle('gt-reduced');
         }
     </script>
 </head>
@@ -118,7 +139,8 @@
 
             <div class="image-container" style="grid-column: 2; grid-row: 1;">
                 {% if gt_image %}
-                <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" alt="Masque Ground Truth" onclick="toggleGtSize()" style="cursor: pointer;">
+                <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" 
+                    alt="Masque Ground Truth" onclick="toggleGtSize()" style="cursor: pointer;">
                 {% else %}
                     <p>Aucun masque ground truth trouvé</p>
                 {% endif %}
