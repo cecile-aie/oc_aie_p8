@@ -3,6 +3,7 @@ uvicorn
 tensorflow==2.17.0
 numpy
 pillow
+opencv-python-headless
 pandas
 scikit-learn
 matplotlib

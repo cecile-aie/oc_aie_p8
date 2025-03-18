@@ -5,10 +5,12 @@ import time
 from PIL import Image
 import io
 import os
+import cv2
 
 from app.models.model_loader import model, CLASS_INFO, CLASS_COLORS
 from app.utils.preprocessing import preprocess_image
 from app.utils.postprocessing import encode_mask, encode_colored_mask
+from app.utils.iou_utils import compute_iou  # Import du calcul de l'IoU
 
 router = APIRouter()
 
@@ -46,14 +48,39 @@ def predict(image: Image.Image):
 
     return mask, color_mask, elapsed_time_ms
 
-# Route pour uploader une image et obtenir la prédiction
+# Route pour uploader une image et obtenir la prédiction avec option de calcul d'IoU
 @router.post("/predict")
-async def predict_uploaded(file: UploadFile = File(...)):
-    """Prédiction sur une image uploadée par l'utilisateur."""
+async def predict_uploaded(file: UploadFile = File(...), gt_file: UploadFile = None):
+    """
+    Prédiction sur une image uploadée par l'utilisateur.
+    Si un masque ground truth est fourni, l'IoU est calculé.
+    """
+    # Lecture de l'image d'entrée
     contents = await file.read()
     image = Image.open(io.BytesIO(contents))
 
     mask, color_mask, elapsed_time_ms = predict(image)
+
+    iou_metrics = None
+    if gt_file:
+        # Lecture du masque ground truth
+        gt_contents = await gt_file.read()
+        gt_mask = Image.open(io.BytesIO(gt_contents))
+        gt_mask = np.array(gt_mask)
+
+        # Vérification que le masque n'est pas vide (tous les pixels à 0)
+        if np.all(gt_mask == 0):
+            iou_metrics = {"mean_iou": None, "iou_per_class": None}
+        else:
+            # Redimensionnement du masque ground truth pour correspondre à la prédiction
+            gt_mask_resized = cv2.resize(gt_mask, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_NEAREST)
+
+            # 🛠 **DEBUG : Vérifier les classes présentes dans les masques**
+            print("Classes présentes dans le masque prédit :", np.unique(mask))
+            print("Classes présentes dans le masque GT :", np.unique(gt_mask_resized))
+
+            # Calcul de l'IoU
+            iou_metrics = compute_iou(mask, gt_mask_resized, num_classes=len(CLASS_INFO))
 
     return {
         "message": "Prédiction effectuée avec succès",
@@ -61,7 +88,9 @@ async def predict_uploaded(file: UploadFile = File(...)):
         "legend": CLASS_INFO,
         "grayscale_mask": encode_mask(mask),
         "colored_mask": encode_colored_mask(mask),
+        "iou": iou_metrics  # Ajout du calcul de l'IoU si gt_file est fourni
     }
+
 
 @router.get("/predict/mask")
 async def get_predicted_mask():
