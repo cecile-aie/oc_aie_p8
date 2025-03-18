@@ -92,6 +92,10 @@
                 outputContainer.innerHTML = "";
             }
         }
+        function toggleGtSize() {
+            var gtMask = document.getElementById('gt-mask');
+            gtMask.classList.toggle('gt-square');
+        }
     </script>
 </head>
 <body>
@@ -114,7 +118,7 @@
 
             <div class="image-container" style="grid-column: 2; grid-row: 1;">
                 {% if gt_image %}
-                    <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" alt="Masque Ground Truth">
+                <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" alt="Masque Ground Truth" onclick="toggleGtSize()" style="cursor: pointer;">
                 {% else %}
                     <p>Aucun masque ground truth trouvé</p>
                 {% endif %}
