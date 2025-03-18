@@ -14,3 +14,4 @@ Unet,efficientnetb3,dice_loss,dynamic_weights,13410,47,0.8372,0.2499,0.7468,0.43
 Unet,vgg16,dice_loss,smaller_batch,15513,58,0.8434,0.2402,0.7001,0.4414,0.2512,24,./logs/fit/Unet_vgg16_dice_loss_smaller_batch_smaller_batch_20250316-112027
 FNP,mobilenetv2,dice_loss,dynamic_weights,19161,90,0.8214,0.2612,0.6997,0.3817,0.2148,22,./logs/fit/FPN_mobilenetv2_dice_loss_dynamic_weights_default_20250316-183315
 FPN,resnet50,dice_loss,dynamic_weights,15179,58,0.8309,0.2645,0.7083,0.3933,0.1956,26,./logs/fit/FPN_resnet50_dice_loss_dynamic_weights_default_20250317-071420
+PSPNet,resnet50,dice_loss,PSPNet_image_size,9951,40,0.7728,0.3285,0.7365,0.3818,0.1758,25,./logs/fit/PSPNet_resnet50_dice_loss_PSPNet_image_size_PSPNet_image_size_20250317-231234

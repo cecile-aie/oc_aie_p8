@@ -7,6 +7,7 @@ WORKDIR /app
 # Copier le fichier de dépendances et installer les packages
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install numpy
 
 # Copier le reste du code de la webapp
 COPY . .

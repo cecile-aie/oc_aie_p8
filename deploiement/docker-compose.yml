@@ -14,7 +14,9 @@ services:
       - "5000:5000"
     volumes:
       - ./webapp:/app
+      - ../data:/app/data  # Montage du dossier data de la machine hôte dans /app/data du conteneur
     depends_on:
       - api
     environment:
       - API_URL=http://api:8000/predict  # Communication entre les services
+      - PYTHONUNBUFFERED=1 # Exécution en mode non bufferisé

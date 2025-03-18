@@ -16,8 +16,8 @@
         }
         #output-container {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* Deux colonnes */
-            grid-template-rows: auto auto; /* Deux lignes */
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: auto auto;
             gap: 20px;
             justify-content: center;
             align-items: center;
@@ -38,7 +38,7 @@
             height: 100%;
         }
         .overlay {
-            opacity: 0.3; /* Transparence augmentée pour mieux voir l'image originale */
+            opacity: 0.3;
         }
         .legend {
             text-align: left;
@@ -60,12 +60,22 @@
             display: none;
             margin-top: 10px;
         }
+        .gt-image {
+            height: 256px;
+            width: auto;
+        }
+        .gt-square {
+            width: 256px;
+            height: 256px;
+            object-fit: cover;
+        }
     </style>
     <script>
-        function toggleButton() {
+        function handleImageSelection() {
             var fileInput = document.getElementById('file-input');
             var submitButton = document.getElementById('submit-button');
             var previewImage = document.getElementById('preview-image');
+            var outputContainer = document.getElementById('output-container');
             
             if (fileInput.files.length) {
                 var reader = new FileReader();
@@ -75,9 +85,11 @@
                 }
                 reader.readAsDataURL(fileInput.files[0]);
                 submitButton.style.display = 'inline-block';
+                outputContainer.innerHTML = ""; // Réinitialiser l'affichage après un nouveau choix
             } else {
                 previewImage.style.display = 'none';
                 submitButton.style.display = 'none';
+                outputContainer.innerHTML = "";
             }
         }
     </script>
@@ -87,39 +99,28 @@
     <p>Choisissez une image à segmenter :</p>
 
     <form action="/" method="post" enctype="multipart/form-data">
-        <input type="file" id="file-input" name="file" accept="image/*" required onchange="toggleButton()">
+        <input type="file" id="file-input" name="file" accept="image/*" required onchange="handleImageSelection()">
         <div id="preview-container">
             <img id="preview-image" alt="Prévisualisation de l'image">
         </div>
         <button type="submit" id="submit-button">Segmenter</button>
     </form>
 
-    <br>
-
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
-
-    {% if result %}
-        <div id="output-container">
-            <!-- Ligne 1 : Image originale en haut à gauche -->
+    <div id="output-container">
+        {% if result %}
             <div class="image-container" style="grid-column: 1; grid-row: 1;">
-                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine" style="display: block; height: 256px;">
+                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine" style="height: 256px;">
             </div>
 
-            <!-- Espace vide en haut à droite -->
-            <div style="grid-column: 2; grid-row: 1;"></div>
-
-            <!-- Ligne 2 : Image segmentée en bas à gauche -->
-            <div class="image-container" style="grid-column: 1; grid-row: 2;">
-                <div class="overlay-container">
-                    <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
-                    <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
-                </div>
+            <div class="image-container" style="grid-column: 2; grid-row: 1;">
+                {% if gt_image %}
+                    <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" alt="Masque Ground Truth">
+                {% else %}
+                    <p>Aucun masque ground truth trouvé</p>
+                {% endif %}
             </div>
 
-            <!-- Ligne 2 : Légende et temps d'inférence en bas à droite -->
-            <div class="legend" style="grid-column: 2; grid-row: 2;">
+            <div class="legend" style="grid-column: 3; grid-row: 1;">
                 <h3>Légende des classes</h3>
                 <ul>
                     {% for key, value in result["legend"].items() %}
@@ -128,9 +129,23 @@
                         </li>
                     {% endfor %}
                 </ul>
+            </div>
+
+            <div class="image-container" style="grid-column: 1; grid-row: 2;">
+                <div class="overlay-container">
+                    <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
+                    <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
+                </div>
+            </div>
+
+            <div class="image-container" style="grid-column: 2; grid-row: 2;">
+                <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" style="width: 256px; height: 256px;">
+            </div>
+
+            <div class="legend" style="grid-column: 3; grid-row: 2;">
                 <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
             </div>
-        </div>
-    {% endif %}
+        {% endif %}
+    </div>
 </body>
 </html>

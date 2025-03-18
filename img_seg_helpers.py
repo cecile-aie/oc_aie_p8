@@ -223,9 +223,16 @@ class MaskVisualizationCallback(tf.keras.callbacks.Callback):
         # Prédiction du modèle
         prediction = self.model.predict(np.expand_dims(self.sample_image, axis=0))[0]
 
+        # Convertir en NumPy si nécessaire
+        if isinstance(self.sample_mask, tf.Tensor):
+            self.sample_mask = self.sample_mask.numpy()
+        
+        if isinstance(prediction, tf.Tensor):
+            prediction = prediction.numpy()
+        
         # Applatissement des masques et des prédictions
         mask_argmax = self.sample_mask.argmax(axis=-1)  # Masque réel aplati
-        pred_argmax = prediction.argmax(axis=-1)          # Masque prédit aplati
+        pred_argmax = prediction.argmax(axis=-1)        # Masque prédit aplati
 
         # Affichage de l'image, du masque réel et du masque prédit
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
