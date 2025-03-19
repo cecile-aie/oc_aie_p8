@@ -55,12 +55,18 @@ def index():
             file_path = os.path.join(upload_folder, filename)
             file.save(file_path)
 
+            # Vérifier s'il existe un masque ground truth
+            gt_path = find_ground_truth(file_path)
             files = {"file": (filename, open(file_path, "rb"), file.mimetype)}
+            
+            if gt_path:
+                files["gt_file"] = (os.path.basename(gt_path), open(gt_path, "rb"), "image/png")
+
             response = requests.post(API_URL, files=files)
 
             if response.status_code == 200:
                 result = response.json()
-                gt_path = find_ground_truth(file_path)
+                
                 if gt_path:
                     gt_mask = np.array(Image.open(gt_path))
                     colored_gt_mask = apply_color_map(gt_mask, result["legend"])

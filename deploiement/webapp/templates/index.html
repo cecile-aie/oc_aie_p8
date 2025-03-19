@@ -169,8 +169,17 @@
             </div>
 
             <div class="legend" style="grid-column: 3; grid-row: 2;">
-                <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
-            </div>
+                {% if result %}
+                    <p><strong>IoU moyen :</strong> {{ result["iou"]["mean_iou"] | round(4) }}</p>
+                    <p><strong>IoU par classe :</strong></p>
+                    <ul>
+                        {% for class_id, class_info in result["legend"].items() %}
+                            <li>{{ class_info["name"] }}: {{ result["iou"]["iou_per_class"][class_id|int] | round(4) }}</li>
+                        {% endfor %}
+                    </ul>
+                    <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
+                {% endif %}
+            </div>            
         {% endif %}
     </div>
 </body>
