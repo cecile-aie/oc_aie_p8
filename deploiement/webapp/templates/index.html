@@ -125,28 +125,52 @@
 
     <form action="/" method="post" enctype="multipart/form-data">
         <input type="file" id="file-input" name="file" accept="image/*" required onchange="handleImageSelection()">
-        <div id="preview-container">
-            <img id="preview-image" alt="Prévisualisation de l'image">
-        </div>
         <button type="submit" id="submit-button">Segmenter</button>
     </form>
 
     <div id="output-container">
         {% if result %}
-            <div class="image-container" style="grid-column: 1; grid-row: 1;">
-                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine" style="height: 256px;">
+            <!-- Ligne des titres supérieurs -->
+            <div style="grid-column: 1; grid-row: 1;">
+                <p><strong>Image d'origine</strong></p>
+            </div>
+            <div style="grid-column: 2; grid-row: 1;">
+                <p><strong>Masque Ground Truth (réel)</strong></p>
             </div>
 
-            <div class="image-container" style="grid-column: 2; grid-row: 1;">
+            <!-- Ligne des images supérieures -->
+            <div class="image-container" style="grid-column: 1; grid-row: 2;">
+                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine" style="height: 256px;">
+            </div>
+            <div class="image-container" style="grid-column: 2; grid-row: 2;">
                 {% if gt_image %}
-                <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" 
-                    alt="Masque Ground Truth" onclick="toggleGtSize()" style="cursor: pointer;">
+                    <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" alt="Masque Ground Truth" onclick="toggleGtSize()">
                 {% else %}
                     <p>Aucun masque ground truth trouvé</p>
                 {% endif %}
             </div>
 
-            <div class="legend" style="grid-column: 3; grid-row: 1;">
+            <!-- Ligne des titres inférieurs -->
+            <div style="grid-column: 1; grid-row: 3;">
+                <p><strong>Superposition masque prédit sur l'image</strong></p>
+            </div>
+            <div style="grid-column: 2; grid-row: 3;">
+                <p><strong>Masque prédit</strong></p>
+            </div>
+
+            <!-- Ligne des images inférieures -->
+            <div class="image-container" style="grid-column: 1; grid-row: 4;">
+                <div class="overlay-container">
+                    <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
+                    <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
+                </div>
+            </div>
+            <div class="image-container" style="grid-column: 2; grid-row: 4;">
+                <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" style="width: 256px; height: 256px;">
+            </div>
+
+            <!-- Légende et performance restent à droite, sur toute la hauteur -->
+            <div class="legend" style="grid-column: 3; grid-row: 1 / span 4;">
                 <h3>Légende des classes</h3>
                 <ul>
                     {% for key, value in result["legend"].items() %}
@@ -155,31 +179,24 @@
                         </li>
                     {% endfor %}
                 </ul>
-            </div>
-
-            <div class="image-container" style="grid-column: 1; grid-row: 2;">
-                <div class="overlay-container">
-                    <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
-                    <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
-                </div>
-            </div>
-
-            <div class="image-container" style="grid-column: 2; grid-row: 2;">
-                <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" style="width: 256px; height: 256px;">
-            </div>
-
-            <div class="legend" style="grid-column: 3; grid-row: 2;">
-                {% if result %}
+                <br>
+                {% if result["iou"]["mean_iou"] is not none %}
                     <p><strong>IoU moyen :</strong> {{ result["iou"]["mean_iou"] | round(4) }}</p>
-                    <p><strong>IoU par classe :</strong></p>
+                {% else %}
+                    <p><strong>IoU moyen :</strong> Non disponible (masque vide)</p>
+                {% endif %}
+                <p><strong>IoU par classe :</strong></p>
+                {% if result["iou"]["iou_per_class"] is not none %}
                     <ul>
                         {% for class_id, class_info in result["legend"].items() %}
-                            <li>{{ class_info["name"] }}: {{ result["iou"]["iou_per_class"][class_id|int] | round(4) }}</li>
+                            <li>Classe {{ class_id }} ({{ class_info["name"] }}): {{ result["iou"]["iou_per_class"][class_id|int] | round(4) }}</li>
                         {% endfor %}
                     </ul>
-                    <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
+                {% else %}
+                    <p>Aucun détail disponible par classe (masque vide)</p>
                 {% endif %}
-            </div>            
+                <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
+            </div>
         {% endif %}
     </div>
 </body>
