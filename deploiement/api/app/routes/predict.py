@@ -61,7 +61,7 @@ async def predict_uploaded(file: UploadFile = File(...), gt_file: UploadFile = N
 
     mask, color_mask, elapsed_time_ms = predict(image)
 
-    iou_metrics = None
+    iou_metrics = {"mean_iou": None, "iou_per_class": None} # valeur par défaut (si gt non fourni)
     if gt_file:
         # Lecture du masque ground truth
         gt_contents = await gt_file.read()
