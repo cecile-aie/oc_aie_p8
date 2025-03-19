@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 import requests
 import base64
 import os
@@ -42,12 +42,20 @@ def find_ground_truth(image_path):
                     return gt_path
     return None
 
+@app.route("/check_mask", methods=["POST"])
+def check_mask():
+    image_name = request.form["image_name"]
+    image_path = os.path.join("static/uploads", secure_filename(image_name))
+    mask_path = find_ground_truth(image_path)
+    return jsonify({"mask_exists": bool(mask_path)})
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     result, error, gt_image = None, None, None
 
     if request.method == "POST":
         file = request.files.get("file")
+        user_mask = request.files.get("mask")
         if file and file.filename:
             filename = secure_filename(file.filename)
             upload_folder = "static/uploads"
@@ -55,20 +63,29 @@ def index():
             file_path = os.path.join(upload_folder, filename)
             file.save(file_path)
 
-            # Vérifier s'il existe un masque ground truth
             gt_path = find_ground_truth(file_path)
+
             files = {"file": (filename, open(file_path, "rb"), file.mimetype)}
-            
+
             if gt_path:
                 files["gt_file"] = (os.path.basename(gt_path), open(gt_path, "rb"), "image/png")
+            elif user_mask and user_mask.filename:
+                user_mask_filename = secure_filename(user_mask.filename)
+                mask_folder = "static/masks"
+                os.makedirs(mask_folder, exist_ok=True)
+                user_mask_path = os.path.join(mask_folder, user_mask_filename)
+                user_mask.save(user_mask_path)
+                files["gt_file"] = (user_mask_filename, open(user_mask_path, "rb"), "image/png")
 
             response = requests.post(API_URL, files=files)
 
             if response.status_code == 200:
                 result = response.json()
-                
-                if gt_path:
-                    gt_mask = np.array(Image.open(gt_path))
+
+                final_mask_path = gt_path if gt_path else (user_mask_path if user_mask and user_mask.filename else None)
+
+                if final_mask_path:
+                    gt_mask = np.array(Image.open(final_mask_path))
                     colored_gt_mask = apply_color_map(gt_mask, result["legend"])
 
                     buffered = io.BytesIO()

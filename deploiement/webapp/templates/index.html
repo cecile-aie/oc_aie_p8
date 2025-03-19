@@ -51,6 +51,10 @@
             padding: 10px 20px;
             margin-top: 10px;
         }
+        #mask-section {
+            display: none;
+            margin-top: 10px;
+        }
         #preview-container {
             margin-top: 20px;
         }
@@ -76,7 +80,8 @@
             var submitButton = document.getElementById('submit-button');
             var previewImage = document.getElementById('preview-image');
             var outputContainer = document.getElementById('output-container');
-            
+            var maskSection = document.getElementById('mask-section');
+
             if (fileInput.files.length) {
                 var reader = new FileReader();
                 reader.onload = function(e) {
@@ -85,119 +90,155 @@
                 }
                 reader.readAsDataURL(fileInput.files[0]);
                 submitButton.style.display = 'inline-block';
-                outputContainer.innerHTML = ""; // Réinitialiser l'affichage après un nouveau choix
+                outputContainer.innerHTML = "";
+
+                // Vérifier si le ground truth existe via une requête AJAX
+                var formData = new FormData();
+                formData.append('image_name', fileInput.files[0].name);
+
+                fetch('/check_mask', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.mask_exists) {
+                        maskSection.style.display = 'block';
+                    } else {
+                        maskSection.style.display = 'none';
+                    }
+                });
             } else {
                 previewImage.style.display = 'none';
                 submitButton.style.display = 'none';
                 outputContainer.innerHTML = "";
+                maskSection.style.display = 'none';
             }
         }
+
+        function skipMask() {
+            document.getElementById('mask-input').value = '';
+            document.getElementById('upload-form').submit();
+        }
+    </script>
+
+    <script>
         function toggleGtSize() {
             var gtMask = document.getElementById('gt-mask');
 
             if (!gtMask) return;  // Sécurité : éviter toute erreur si l'élément n'existe pas
 
-            // Stocker la taille initiale au chargement (adaptée à la hauteur de la colonne)
             if (!gtMask.dataset.loadedWidth) {
                 gtMask.dataset.loadedWidth = gtMask.width;
                 gtMask.dataset.loadedHeight = gtMask.height;
             }
 
-            // Vérifier si l'image est réduite à 256x256 ou à sa taille ajustée à la colonne
             if (gtMask.classList.contains('gt-reduced')) {
-                // Remettre à la taille initiale ajustée (largeur proportionnelle à la hauteur de colonne)
                 gtMask.style.width = gtMask.dataset.loadedWidth + "px";
                 gtMask.style.height = gtMask.dataset.loadedHeight + "px";
             } else {
-                // Réduire à 256x256
                 gtMask.style.width = "256px";
                 gtMask.style.height = "256px";
             }
 
-            // Basculer la classe pour suivre l'état
             gtMask.classList.toggle('gt-reduced');
         }
     </script>
+
 </head>
 <body>
     <h1>Segmentation d'Images</h1>
     <p>Choisissez une image à segmenter :</p>
 
-    <form action="/" method="post" enctype="multipart/form-data">
+    <form id="upload-form" action="/" method="post" enctype="multipart/form-data">
         <input type="file" id="file-input" name="file" accept="image/*" required onchange="handleImageSelection()">
+        
+        <!-- Section pour soumettre un masque si le ground truth n'est pas trouvé -->
+        <div id="mask-section">
+            <p>Aucun ground truth trouvé. Vous pouvez soumettre un masque :</p>
+            <input type="file" id="mask-input" name="mask" accept="image/*">
+        </div>
+
         <button type="submit" id="submit-button">Segmenter</button>
     </form>
 
     <div id="output-container">
         {% if result %}
-            <!-- Ligne des titres supérieurs -->
-            <div style="grid-column: 1; grid-row: 1;">
-                <p><strong>Image d'origine</strong></p>
-            </div>
-            <div style="grid-column: 2; grid-row: 1;">
-                <p><strong>Masque Ground Truth (réel)</strong></p>
-            </div>
+        <div style="grid-column: 1; grid-row: 1;">
+            <p><strong>Image d'origine</strong></p>
+        </div>
+        <div style="grid-column: 2; grid-row: 1;">
+            <p><strong>Masque Ground Truth (réel)</strong></p>
+        </div>
 
-            <!-- Ligne des images supérieures -->
-            <div class="image-container" style="grid-column: 1; grid-row: 2;">
-                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine" style="height: 256px;">
+        <div class="image-container" style="grid-column: 1; grid-row: 2;">
+            <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine" style="height: 256px;">
+        </div>
+        <div class="image-container" style="grid-column: 2; grid-row: 2;">
+            {% if gt_image %}
+                <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" alt="Masque Ground Truth" onclick="toggleGtSize()">
+            {% else %}
+                <p>Aucun masque ground truth trouvé</p>
+            {% endif %}
+        </div>
+
+        <div style="grid-column: 1; grid-row: 3;">
+            <p><strong>Superposition masque prédit sur l'image</strong></p>
+        </div>
+        <div style="grid-column: 2; grid-row: 3;">
+            <p><strong>Masque prédit</strong></p>
+        </div>
+
+        <div class="image-container" style="grid-column: 1; grid-row: 4;">
+            <div class="overlay-container">
+                <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
+                <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
             </div>
-            <div class="image-container" style="grid-column: 2; grid-row: 2;">
-                {% if gt_image %}
-                    <img id="gt-mask" class="gt-image" src="data:image/png;base64,{{ gt_image }}" alt="Masque Ground Truth" onclick="toggleGtSize()">
+        </div>
+        <div class="image-container" style="grid-column: 2; grid-row: 4;">
+            <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" style="width: 256px; height: 256px;">
+        </div>
+
+        <div class="legend" style="grid-column: 3; grid-row: 1 / span 4;">
+            <h3>Légende des classes</h3>
+            <ul>
+                {% for key, value in result["legend"].items() %}
+                    <li style="color: rgb({{ value['color'][0] }}, {{ value['color'][1] }}, {{ value['color'][2] }})">
+                        {{ value['name'] }}
+                    </li>
+                {% endfor %}
+            </ul>
+            
+            <!-- Sécurisation de l'affichage de l'IoU -->
+            <p><strong>IoU moyen :</strong> 
+                {% if result["iou"]["mean_iou"] is not none %}
+                    {{ result["iou"]["mean_iou"] | round(4) }}
                 {% else %}
-                    <p>Aucun masque ground truth trouvé</p>
+                    Non disponible (masque vide)
                 {% endif %}
-            </div>
+            </p>
 
-            <!-- Ligne des titres inférieurs -->
-            <div style="grid-column: 1; grid-row: 3;">
-                <p><strong>Superposition masque prédit sur l'image</strong></p>
-            </div>
-            <div style="grid-column: 2; grid-row: 3;">
-                <p><strong>Masque prédit</strong></p>
-            </div>
-
-            <!-- Ligne des images inférieures -->
-            <div class="image-container" style="grid-column: 1; grid-row: 4;">
-                <div class="overlay-container">
-                    <img src="data:image/png;base64,{{ result['original_image'] }}" alt="Image d'Origine">
-                    <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" class="overlay">
-                </div>
-            </div>
-            <div class="image-container" style="grid-column: 2; grid-row: 4;">
-                <img src="data:image/png;base64,{{ result['colored_mask'] }}" alt="Masque Coloré" style="width: 256px; height: 256px;">
-            </div>
-
-            <!-- Légende et performance restent à droite, sur toute la hauteur -->
-            <div class="legend" style="grid-column: 3; grid-row: 1 / span 4;">
-                <h3>Légende des classes</h3>
+            <!-- Ajout de l'IoU par classe -->
+            <p><strong>IoU par classe :</strong></p>
+            {% if result["iou"]["iou_per_class"] %}
                 <ul>
-                    {% for key, value in result["legend"].items() %}
-                        <li style="color: rgb({{ value['color'][0] }}, {{ value['color'][1] }}, {{ value['color'][2] }})">
-                            {{ value['name'] }}
+                    {% for class_id, class_info in result["legend"].items() %}
+                        <li>Classe {{ class_id }} ({{ class_info["name"] }}): 
+                            {% if result["iou"]["iou_per_class"][class_id|int] is not none %}
+                                {{ result["iou"]["iou_per_class"][class_id|int] | round(4) }}
+                            {% else %}
+                                Non disponible
+                            {% endif %}
                         </li>
                     {% endfor %}
                 </ul>
-                <br>
-                {% if result["iou"]["mean_iou"] is not none %}
-                    <p><strong>IoU moyen :</strong> {{ result["iou"]["mean_iou"] | round(4) }}</p>
-                {% else %}
-                    <p><strong>IoU moyen :</strong> Non disponible (masque vide)</p>
-                {% endif %}
-                <p><strong>IoU par classe :</strong></p>
-                {% if result["iou"]["iou_per_class"] is not none %}
-                    <ul>
-                        {% for class_id, class_info in result["legend"].items() %}
-                            <li>Classe {{ class_id }} ({{ class_info["name"] }}): {{ result["iou"]["iou_per_class"][class_id|int] | round(4) }}</li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p>Aucun détail disponible par classe (masque vide)</p>
-                {% endif %}
-                <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
-            </div>
-        {% endif %}
+            {% else %}
+                <p>Aucun détail disponible par classe</p>
+            {% endif %}
+
+            <p><strong>Temps d'inférence :</strong> {{ result["elapsed_time_ms"] | round(2) }} ms</p>
+        </div>
+    {% endif %}
     </div>
 </body>
 </html>
