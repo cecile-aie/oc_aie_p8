@@ -12,6 +12,7 @@ from app.models.model_loader import model, CLASS_INFO, CLASS_COLORS
 from app.utils.preprocessing import preprocess_image
 from app.utils.postprocessing import encode_mask, encode_colored_mask
 from app.utils.iou_utils import compute_iou  # Import du calcul de l'IoU
+from app.utils.preprocessing import validate_image # Import du controle de l'image d'entrée
 
 router = APIRouter()
 
@@ -66,6 +67,9 @@ async def predict_uploaded(
     # Lecture de l'image d'entrée
     contents = await file.read()
     image = Image.open(io.BytesIO(contents))
+
+    # Validation de l'image (3 canaux RGB)
+    validate_image(image)    
 
     mask, color_mask, elapsed_time_ms = predict(image)
 
