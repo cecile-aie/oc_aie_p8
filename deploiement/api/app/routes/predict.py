@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from typing import Optional
 from fastapi.responses import FileResponse
 import numpy as np
 import time
@@ -48,9 +49,16 @@ def predict(image: Image.Image):
 
     return mask, color_mask, elapsed_time_ms
 
+
+from fastapi import Form, UploadFile, File
+from typing import Optional
+
 # Route pour uploader une image et obtenir la prédiction avec option de calcul d'IoU
 @router.post("/predict")
-async def predict_uploaded(file: UploadFile = File(...), gt_file: UploadFile = None):
+async def predict_uploaded(
+    file: UploadFile = File(...), 
+    gt_file: Optional[UploadFile] = File(None)
+):
     """
     Prédiction sur une image uploadée par l'utilisateur.
     Si un masque ground truth est fourni, l'IoU est calculé.
@@ -61,26 +69,25 @@ async def predict_uploaded(file: UploadFile = File(...), gt_file: UploadFile = N
 
     mask, color_mask, elapsed_time_ms = predict(image)
 
-    iou_metrics = {"mean_iou": None, "iou_per_class": None} # valeur par défaut (si gt non fourni)
-    if gt_file:
-        # Lecture du masque ground truth
-        gt_contents = await gt_file.read()
-        gt_mask = Image.open(io.BytesIO(gt_contents))
-        gt_mask = np.array(gt_mask)
+    iou_metrics = {"mean_iou": None, "iou_per_class": None}  # valeur par défaut (si gt non fourni)
 
-        # Vérification que le masque n'est pas vide (tous les pixels à 0)
-        if np.all(gt_mask == 0):
-            iou_metrics = {"mean_iou": None, "iou_per_class": None}
-        else:
-            # Redimensionnement du masque ground truth pour correspondre à la prédiction
-            gt_mask_resized = cv2.resize(gt_mask, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_NEAREST)
+    # ✅ ignore les valeurs vides qui ne sont pas des vrais fichiers
+    if gt_file and gt_file.filename and gt_file.file:
+        try:
+            gt_contents = await gt_file.read()
+            gt_mask = Image.open(io.BytesIO(gt_contents))
+            gt_mask = np.array(gt_mask)
 
-            # 🛠 **DEBUG : Vérifier les classes présentes dans les masques**
-            print("Classes présentes dans le masque prédit :", np.unique(mask))
-            print("Classes présentes dans le masque GT :", np.unique(gt_mask_resized))
+            if not np.all(gt_mask == 0):
+                gt_mask_resized = cv2.resize(gt_mask, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-            # Calcul de l'IoU
-            iou_metrics = compute_iou(mask, gt_mask_resized, num_classes=len(CLASS_INFO))
+                # 🛠 DEBUG : classes présentes
+                print("Classes présentes dans le masque prédit :", np.unique(mask))
+                print("Classes présentes dans le masque GT :", np.unique(gt_mask_resized))
+
+                iou_metrics = compute_iou(mask, gt_mask_resized, num_classes=len(CLASS_INFO))
+        except Exception as e:
+            print("Erreur lors du traitement de gt_file :", e)
 
     return {
         "message": "Prédiction effectuée avec succès",
@@ -88,8 +95,10 @@ async def predict_uploaded(file: UploadFile = File(...), gt_file: UploadFile = N
         "legend": CLASS_INFO,
         "grayscale_mask": encode_mask(mask),
         "colored_mask": encode_colored_mask(mask),
-        "iou": iou_metrics  # Ajout du calcul de l'IoU si gt_file est fourni
+        "iou": iou_metrics
     }
+
+
 
 
 @router.get("/predict/mask")

@@ -16,3 +16,6 @@ FNP,mobilenetv2,dice_loss,dynamic_weights,19161,90,0.8214,0.2612,0.6997,0.3817,0
 FPN,resnet50,dice_loss,dynamic_weights,15179,58,0.8309,0.2645,0.7083,0.3933,0.1956,26,./logs/fit/FPN_resnet50_dice_loss_dynamic_weights_default_20250317-071420
 PSPNet,resnet50,dice_loss,PSPNet_image_size,9951,40,0.7728,0.3285,0.7365,0.3818,0.1758,25,./logs/fit/PSPNet_resnet50_dice_loss_PSPNet_image_size_PSPNet_image_size_20250317-231234
 DeepLabV3+_Custom,Xception,dice_loss,default,18545,80,0.8016,0.3023,0.6865,0.2614,0.1638,27,./logs/fit/DeepLabV3+_Custom_resnet50_dice_loss_default_default_20250318-222704
+DeepLabV3+_Custom,Xception,tversky_loss,dynamic_weights,16567,61,0.785,0.1252,0.6677,0.2226,0.0,29,./logs/fit/DeepLabV3+_Custom_Xception_tversky_loss_dynamic_weights_default_20250319-212956
+DeepLabV3+_Custom,Xception,dice_loss_weighted,dynamic_weights,21341,85,0.808,0.6289,0.6852,0.2566,0.1562,32,./logs/fit/DeepLabV3+_Custom_Xception_dice_loss_weighted_dynamic_weights_default_20250320-070903
+FPN,mobilenetv2,dice_loss_weighted,smaller_batch,18336,74,0.8286,0.5471,0.7089,0.385,0.2268,27,./logs/fit/FPN_mobilenetv2_dice_loss_weighted_smaller_batch_smaller_batch_20250320-204223
