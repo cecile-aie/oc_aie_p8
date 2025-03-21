@@ -98,7 +98,10 @@ def index():
                     encoded_original_image = base64.b64encode(img_file.read()).decode()
                 result["original_image"] = encoded_original_image
             else:
-                error = "Erreur lors de la segmentation"
+                try:
+                    error = response.json().get("error", "Erreur lors de la segmentation")
+                except Exception:
+                    error = "Erreur lors de la segmentation"
 
             return render_template("index.html", result=result, error=error, gt_image=gt_image)
 

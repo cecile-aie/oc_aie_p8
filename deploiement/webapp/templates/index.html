@@ -145,13 +145,37 @@
         }
     </script>
 
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const fileInput = document.getElementById("file-input");
+            const errorMessage = document.getElementById("error-message");
+
+            if (fileInput && errorMessage) {
+                fileInput.addEventListener("change", () => {
+                    errorMessage.style.display = "none";
+                });
+            }
+        });
+    </script>
+
+
+
 </head>
 <body>
     <h1>Segmentation d'Images</h1>
     <p>Choisissez une image à segmenter :</p>
 
     <form id="upload-form" action="/" method="post" enctype="multipart/form-data">
-        <input type="file" id="file-input" name="file" accept="image/*" required onchange="handleImageSelection()">
+        <input id="file-input" type="file" name="file" accept="image/*" required><br><br>
+        <input type="file" name="mask" accept="image/*">
+        <button type="submit">Segmenter</button>
+    </form>
+    
+    {% if error %}
+        <p id="error-message" style="color: red; font-weight: bold; margin-top: 1em; white-space: pre-line;">
+            {{ error }}
+        </p>
+    {% endif %}
         
         <!-- Section pour soumettre un masque si le ground truth n'est pas trouvé -->
         <div id="mask-section">
