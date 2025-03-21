@@ -13,10 +13,18 @@ app = Flask(__name__)
 API_URL = os.getenv("API_URL", "http://api:8000/predict")
 
 def apply_color_map(mask, legend):
+    """
+    Applique une colorisation au masque GT pour affichage dans la webapp.
+    """
+    if mask.ndim != 2:
+        raise ValueError(f"Le masque GT doit être en 2D (H, W). Dimensions : {mask.shape}")
+
     color_mask = np.zeros((*mask.shape, 3), dtype=np.uint8)
     for class_id, class_info in legend.items():
         color_mask[mask == int(class_id)] = class_info["color"]
+
     return Image.fromarray(color_mask)
+
 
 def is_valid_mask(mask_path):
     try:
@@ -27,6 +35,7 @@ def is_valid_mask(mask_path):
     except Exception as e:
         print(f"[ERROR] Unable to load mask: {e}", file=sys.stderr)
         return False
+
 
 def find_ground_truth(image_path):
     image_filename = os.path.basename(image_path)
@@ -78,30 +87,47 @@ def index():
                 files["gt_file"] = (user_mask_filename, open(user_mask_path, "rb"), "image/png")
 
             response = requests.post(API_URL, files=files)
+            error = None
+            try:
+                api_response = response.json()
+            except Exception:
+                api_response = {}
 
             if response.status_code == 200:
-                result = response.json()
+                result = api_response
 
-                final_mask_path = gt_path if gt_path else (user_mask_path if user_mask and user_mask.filename else None)
+                # Vérifie s'il y a une erreur côté API liée à un masque fourni
+                if "error" in api_response:
+                    if gt_path or (user_mask and user_mask.filename):
+                        error = api_response["error"]
 
-                if final_mask_path:
-                    gt_mask = np.array(Image.open(final_mask_path))
-                    colored_gt_mask = apply_color_map(gt_mask, result["legend"])
-
-                    buffered = io.BytesIO()
-                    colored_gt_mask.save(buffered, format="PNG")
-                    gt_image = base64.b64encode(buffered.getvalue()).decode()
-                else:
-                    gt_image = None
-
+                # Toujours inclure l'image d'origine dans le résultat
                 with open(file_path, "rb") as img_file:
                     encoded_original_image = base64.b64encode(img_file.read()).decode()
                 result["original_image"] = encoded_original_image
+
+                gt_image = None  # Valeur par défaut
+
+                # Si pas d'erreur explicite, traiter le masque GT pour affichage
+                if not error:
+                    final_mask_path = gt_path if gt_path else (user_mask_path if user_mask and user_mask.filename else None)
+
+                    if final_mask_path:
+                        try:
+                            gt_mask = np.array(Image.open(final_mask_path))
+                            colored_gt_mask = apply_color_map(gt_mask, result["legend"])
+
+                            buffered = io.BytesIO()
+                            colored_gt_mask.save(buffered, format="PNG")
+                            gt_image = base64.b64encode(buffered.getvalue()).decode()
+
+                        except Exception as e:
+                            print(f"[ERROR] Échec lors de l'application de la colormap : {e}", file=sys.stderr)
+                            error = "Masque GT non exploitable pour l'affichage. Il est peut-être invalide."
             else:
-                try:
-                    error = response.json().get("error", "Erreur lors de la segmentation")
-                except Exception:
-                    error = "Erreur lors de la segmentation"
+                # Erreur retournée par l'API
+                error = api_response.get("error", "Erreur lors de la segmentation")
+
 
             return render_template("index.html", result=result, error=error, gt_image=gt_image)
 

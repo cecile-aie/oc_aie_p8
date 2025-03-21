@@ -13,6 +13,7 @@ from app.utils.preprocessing import preprocess_image
 from app.utils.postprocessing import encode_mask, encode_colored_mask
 from app.utils.iou_utils import compute_iou  # Import du calcul de l'IoU
 from app.utils.preprocessing import validate_image # Import du controle de l'image d'entrée
+from app.utils.preprocessing import validate_gt_mask # Import du controle du masque réel
 
 router = APIRouter()
 
@@ -74,6 +75,7 @@ async def predict_uploaded(
     mask, color_mask, elapsed_time_ms = predict(image)
 
     iou_metrics = {"mean_iou": None, "iou_per_class": None}  # valeur par défaut (si gt non fourni)
+    error_msg = None  # pour inclure un message d’erreur facultatif dans la réponse
 
     # ✅ ignore les valeurs vides qui ne sont pas des vrais fichiers
     if gt_file and gt_file.filename and gt_file.file:
@@ -81,6 +83,7 @@ async def predict_uploaded(
             gt_contents = await gt_file.read()
             gt_mask = Image.open(io.BytesIO(gt_contents))
             gt_mask = np.array(gt_mask)
+            validate_gt_mask(gt_mask, num_classes=len(CLASS_INFO))
 
             if not np.all(gt_mask == 0):
                 gt_mask_resized = cv2.resize(gt_mask, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_NEAREST)
@@ -91,16 +94,20 @@ async def predict_uploaded(
 
                 iou_metrics = compute_iou(mask, gt_mask_resized, num_classes=len(CLASS_INFO))
         except Exception as e:
-            print("Erreur lors du traitement de gt_file :", e)
+            error_msg = f"Erreur lors du traitement de gt_file : {e}"
+            print("[ERROR]", error_msg)
 
+    # 🔁 Toujours retourner une réponse complète, avec le champ "error" si applicable
     return {
         "message": "Prédiction effectuée avec succès",
         "elapsed_time_ms": elapsed_time_ms,
         "legend": CLASS_INFO,
         "grayscale_mask": encode_mask(mask),
         "colored_mask": encode_colored_mask(mask),
-        "iou": iou_metrics
+        "iou": iou_metrics,
+        "error": error_msg  # affiché uniquement si non None
     }
+
 
 
 

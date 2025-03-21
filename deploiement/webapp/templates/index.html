@@ -264,5 +264,39 @@
         </div>
     {% endif %}
     </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const fileInput = document.getElementById("file-input");
+    
+            fileInput.addEventListener("change", () => {
+                // Masquer le message d'erreur
+                const errorMessage = document.getElementById("error-message");
+                if (errorMessage) {
+                    errorMessage.style.display = "none";
+                }
+    
+                // Vider le conteneur de résultats (images, IoU, légende, etc.)
+                const outputContainer = document.getElementById("output-container");
+                if (outputContainer) {
+                    outputContainer.innerHTML = "";
+                }
+    
+                // Réinitialiser l'image preview (si visible)
+                const previewImage = document.getElementById("preview-image");
+                if (previewImage) {
+                    previewImage.style.display = "none";
+                    previewImage.src = "";
+                }
+    
+                // Cacher la section masque manuel
+                const maskSection = document.getElementById("mask-section");
+                if (maskSection) {
+                    maskSection.style.display = "none";
+                }
+            });
+        });
+    </script>  
+
 </body>
 </html>
