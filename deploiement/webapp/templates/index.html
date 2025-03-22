@@ -45,7 +45,6 @@
             width: 300px;
         }
         #submit-button {
-            display: none;
             font-size: 18px;
             font-weight: bold;
             padding: 10px 20px;
@@ -163,12 +162,26 @@
 </head>
 <body>
     <h1>Segmentation d'Images</h1>
-    <p>Choisissez une image à segmenter :</p>
 
+    <p id="image-memory-message">
+        {% if image_name %}
+          <em>Image en mémoire : <span id="image-name">{{ image_name }}</span> — vous pouvez ajouter ou corriger un masque.</em>
+        {% else %}
+          Choisissez une image à segmenter :
+        {% endif %}
+      </p>
+         
     <form id="upload-form" action="/" method="post" enctype="multipart/form-data">
-        <input id="file-input" type="file" name="file" accept="image/*" required><br><br>
-        <input type="file" name="mask" accept="image/*">
-        <button type="submit">Segmenter</button>
+        <input id="file-input" type="file" name="file" accept="image/*"><br><br>
+        <input type="hidden" name="image_name" value="{{ image_name }}">
+
+        <!-- Section pour soumettre un masque si le ground truth n'est pas trouvé -->
+        <div id="mask-section" {% if not show_mask_input %}style="display: none;"{% endif %}>
+            <p><strong>Aucun ground truth trouvé.</strong> Vous pouvez soumettre un masque :</p>
+            <input type="file" name="mask" accept="image/*" id="mask-input"><br><br>
+        </div>
+
+        <button type="submit" id="submit-button">Segmenter</button>
     </form>
     
     {% if error %}
@@ -176,15 +189,7 @@
             {{ error }}
         </p>
     {% endif %}
-        
-        <!-- Section pour soumettre un masque si le ground truth n'est pas trouvé -->
-        <div id="mask-section">
-            <p>Aucun ground truth trouvé. Vous pouvez soumettre un masque :</p>
-            <input type="file" id="mask-input" name="mask" accept="image/*">
-        </div>
-
-        <button type="submit" id="submit-button">Segmenter</button>
-    </form>
+    
 
     <div id="output-container">
         {% if result %}
@@ -266,37 +271,77 @@
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const fileInput = document.getElementById("file-input");
+    document.addEventListener("DOMContentLoaded", function () {
+        const fileInput = document.getElementById("file-input");
+        const errorMessage = document.getElementById("error-message");
+        const imageNameSpan = document.getElementById("image-name");
+        const message = document.getElementById("image-memory-message");
+        const outputContainer = document.getElementById("output-container");
+        const previewImage = document.getElementById("preview-image");
+        const maskSection = document.getElementById("mask-section");
+        const submitButton = document.getElementById("submit-button");
     
-            fileInput.addEventListener("change", () => {
-                // Masquer le message d'erreur
-                const errorMessage = document.getElementById("error-message");
-                if (errorMessage) {
-                    errorMessage.style.display = "none";
+        // ✅ Si une image est déjà en mémoire (champ hidden rempli), on affiche le bouton Segmenter et le champ masque
+        const imageNameValue = document.querySelector("input[name='image_name']").value;
+        if (imageNameValue) {
+            if (submitButton) {
+                submitButton.style.display = "inline-block";
+            }
+            if (maskSection) {
+                maskSection.style.display = "block";
+            }
+        }
+    
+        fileInput.addEventListener("change", () => {
+            // Masquer l'erreur
+            if (errorMessage) {
+                errorMessage.style.display = "none";
+            }
+    
+            // Réinitialiser les résultats précédents
+            if (outputContainer) {
+                outputContainer.innerHTML = "";
+            }
+            if (previewImage) {
+                previewImage.style.display = "none";
+                previewImage.src = "";
+            }
+            if (maskSection) {
+                maskSection.style.display = "none";
+            }
+    
+            // Mettre à jour le nom de l’image en mémoire
+            if (fileInput.files.length > 0) {
+                const fileName = fileInput.files[0].name;
+    
+                if (imageNameSpan) {
+                    imageNameSpan.textContent = fileName;
+                } else if (message) {
+                    message.innerHTML = `<em>Image en mémoire : <span id="image-name">${fileName}</span> — vous pouvez ajouter ou corriger un masque.</em>`;
                 }
     
-                // Vider le conteneur de résultats (images, IoU, légende, etc.)
-                const outputContainer = document.getElementById("output-container");
-                if (outputContainer) {
-                    outputContainer.innerHTML = "";
+                // ✅ Afficher le bouton dès qu'une image est sélectionnée
+                if (submitButton) {
+                    submitButton.style.display = "inline-block";
                 }
     
-                // Réinitialiser l'image preview (si visible)
-                const previewImage = document.getElementById("preview-image");
-                if (previewImage) {
-                    previewImage.style.display = "none";
-                    previewImage.src = "";
-                }
-    
-                // Cacher la section masque manuel
-                const maskSection = document.getElementById("mask-section");
+                // ✅ Toujours afficher le champ masque si une image est sélectionnée
                 if (maskSection) {
-                    maskSection.style.display = "none";
+                    maskSection.style.display = "block";
                 }
-            });
+    
+                // Prévisualisation de l'image
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    if (previewImage) {
+                        previewImage.src = e.target.result;
+                        previewImage.style.display = "block";
+                    }
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            }
         });
-    </script>  
-
+    });
+    </script>           
 </body>
 </html>
