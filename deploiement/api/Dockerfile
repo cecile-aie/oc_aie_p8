@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 # Pour les tests de charge (peut être supprimé en prod)
-RUN pip install locust
+RUN pip install --no-cache-dir --ignore-installed blinker locust
 
 # Log du commit
 ARG GIT_COMMIT
