@@ -8,19 +8,43 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      
-      - name: Connect to EC2 and deploy
+
+      - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            echo "📦 Passage dans le dossier de déploiement"
             cd ~/p8/deploiement
+
+            echo "🧹 Nettoyage des changements locaux éventuels"
+            git reset --hard HEAD
+            git clean -fd  # Supprime les fichiers non suivis
+
+            echo "🔄 Récupération de la dernière version de main"
+            git fetch origin
             git pull origin main
+
+            echo "🔍 Commit actuellement déployé :"
+            git log -1
+
+            echo "🛑 Arrêt des anciens conteneurs"
             docker-compose down
-            docker-compose up --build -d
+
+            echo "🛠️ Reconstruction des images sans cache"
+            docker-compose build --no-cache
+
+            echo "🚀 Redémarrage des services"
+            docker-compose up -d
+
+            echo "📦 Conteneurs actifs"
+            docker ps -a
+
+            echo "🧊 Images Docker locales"
+            docker images
