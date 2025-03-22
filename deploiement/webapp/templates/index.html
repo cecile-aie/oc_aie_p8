@@ -165,7 +165,7 @@
 
     <p id="image-memory-message">
         {% if image_name %}
-          <em>Image en mémoire : <span id="image-name">{{ image_name }}</span> — vous pouvez ajouter ou corriger un masque.</em>
+          <em>Image en mémoire : <span id="image-name">{{ image_name }}</span> </em>
         {% else %}
           Choisissez une image à segmenter :
         {% endif %}
@@ -282,9 +282,9 @@
         const submitButton = document.getElementById("submit-button");
     
         // ✅ Si une image est déjà en mémoire (champ hidden rempli), on affiche le bouton Segmenter et le champ masque
-        const imageNameValue = document.querySelector("input[name='image_name']").value;
-        if (imageNameValue) {
-            if (submitButton) {
+       const imageNameValue = document.querySelector("input[name='image_name']").value;
+       if (imageNameValue) {
+          if (submitButton) {
                 submitButton.style.display = "inline-block";
             }
             if (maskSection) {
@@ -317,7 +317,7 @@
                 if (imageNameSpan) {
                     imageNameSpan.textContent = fileName;
                 } else if (message) {
-                    message.innerHTML = `<em>Image en mémoire : <span id="image-name">${fileName}</span> — vous pouvez ajouter ou corriger un masque.</em>`;
+                    message.innerHTML = `<em>Image en mémoire : <span id="image-name">${fileName}</span> </em>`;
                 }
     
                 // ✅ Afficher le bouton dès qu'une image est sélectionnée

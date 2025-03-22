@@ -37,8 +37,8 @@ jobs:
             echo "🛑 Arrêt des anciens conteneurs"
             docker-compose down
 
-            echo "🛠️ Reconstruction des images sans cache"
-            docker-compose build --no-cache
+            echo "🛠️ Reconstruction des images"
+            docker-compose build
 
             echo "🚀 Redémarrage des services"
             docker-compose up -d
