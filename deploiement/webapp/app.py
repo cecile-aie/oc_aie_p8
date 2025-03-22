@@ -93,16 +93,18 @@ def index():
 
         image_name = filename
         gt_path = find_ground_truth(file_path)
+        gt_found = bool(gt_path)
 
-        # ✅ Dès qu’une image est en mémoire, on affiche le champ masque
-        show_mask_input = session.get("last_image_path") is not None
+        # ✅ On n'affiche le champ que si aucun GT valide n'a été trouvé
+        show_mask_input = not bool(gt_path)
+
 
         try:
             image_file = open(file_path, "rb")
         except Exception as e:
             error = "Aucune image n’a été chargée ou elle a été perdue. Veuillez en sélectionner une."
             return render_template("index.html", result=None, error=error, gt_image=None,
-                                   image_name=None, show_mask_input=show_mask_input)
+                                   image_name=None, show_mask_input=show_mask_input, gt_found=gt_found)
 
         files = {"file": (filename, image_file, "image/jpeg")}
 
@@ -125,7 +127,7 @@ def index():
         if response.status_code == 200:
             result = api_response
 
-            if "error" in api_response:
+            if api_response.get("error"):
                 if gt_path or (user_mask and user_mask.filename):
                     error = api_response["error"]
                 show_mask_input = True  # ✅ En cas d’erreur masque, toujours laisser visible
@@ -152,13 +154,13 @@ def index():
         else:
             error = api_response.get("error", "Erreur lors de la segmentation")
         # ✅ le champ masque reste visible
-        show_mask_input = session.get("last_image_path") is not None
+        # show_mask_input = session.get("last_image_path") is not None
 
         return render_template("index.html", result=result, error=error, gt_image=gt_image,
-                               image_name=image_name, show_mask_input=show_mask_input)
+                                image_name=image_name, show_mask_input=show_mask_input, gt_found=gt_found)
 
     return render_template("index.html", result=None, error=None, gt_image=None,
-                           image_name=None, show_mask_input=False)
+                           image_name=None, show_mask_input=False, gt_found=False)
 
 
 

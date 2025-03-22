@@ -175,11 +175,20 @@
         <input id="file-input" type="file" name="file" accept="image/*"><br><br>
         <input type="hidden" name="image_name" value="{{ image_name }}">
 
+        <!-- ✅ Message si GT automatique trouvé -->
+        {% if gt_found %}
+        <div id="gt-message">
+            <p style="color: green;"><strong>Masque réel trouvé automatiquement.</strong></p>
+        </div>
+        {% endif %}
+
         <!-- Section pour soumettre un masque si le ground truth n'est pas trouvé -->
-        <div id="mask-section" {% if not show_mask_input %}style="display: none;"{% endif %}>
+        {% if show_mask_input %}
+        <div id="mask-section">
             <p><strong>Aucun ground truth trouvé.</strong> Vous pouvez soumettre un masque :</p>
             <input type="file" name="mask" accept="image/*" id="mask-input"><br><br>
         </div>
+        {% endif %}
 
         <button type="submit" id="submit-button">Segmenter</button>
     </form>
@@ -280,16 +289,22 @@
         const previewImage = document.getElementById("preview-image");
         const maskSection = document.getElementById("mask-section");
         const submitButton = document.getElementById("submit-button");
+        const gtMessage = document.getElementById("gt-message");
     
         // ✅ Si une image est déjà en mémoire (champ hidden rempli), on affiche le bouton Segmenter et le champ masque
        const imageNameValue = document.querySelector("input[name='image_name']").value;
+       // Valeur injectée depuis Flask via Jinja
+       const showMaskInput = {{ 'true' if show_mask_input else 'false' }};
+       const resultDisplayed = {{ 'true' if result else 'false' }};
+
        if (imageNameValue) {
-          if (submitButton) {
+            if (submitButton) {
                 submitButton.style.display = "inline-block";
             }
             if (maskSection) {
-                maskSection.style.display = "block";
+                maskSection.style.display = showMaskInput ? "block" : "none";
             }
+
         }
     
         fileInput.addEventListener("change", () => {
@@ -309,6 +324,11 @@
             if (maskSection) {
                 maskSection.style.display = "none";
             }
+
+            // Message lorsque le masque GT est trouvé
+            if (gtMessage) {
+                gtMessage.remove(); // ou gtMessage.style.display = "none";
+            }
     
             // Mettre à jour le nom de l’image en mémoire
             if (fileInput.files.length > 0) {
@@ -326,9 +346,9 @@
                 }
     
                 // ✅ Toujours afficher le champ masque si une image est sélectionnée
-                if (maskSection) {
-                    maskSection.style.display = "block";
-                }
+                // if (maskSection) {
+                //     maskSection.style.display = "block";
+               //  }
     
                 // Prévisualisation de l'image
                 const reader = new FileReader();
@@ -339,6 +359,7 @@
                     }
                 };
                 reader.readAsDataURL(fileInput.files[0]);
+                handleImageSelection(); // laisse la logique dynamique gérer le mask-section
             }
         });
     });
