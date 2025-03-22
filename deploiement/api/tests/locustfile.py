@@ -17,7 +17,7 @@ from locust import HttpUser, task, between
 from locust import HttpUser, task, between
 
 class FastAPISegmentUser(HttpUser):
-    wait_time = between(0.5, 0.5)
+    wait_time = between(0.1, 0.1)
 
     @task
     def predict_direct_api(self):
