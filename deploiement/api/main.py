@@ -7,6 +7,17 @@ from PIL import UnidentifiedImageError
 
 app = FastAPI()
 
+# Lecture de la version au démarrage
+try:
+    with open("/app/VERSION.txt", "r") as f:
+        APP_VERSION = f.read().strip()
+except FileNotFoundError:
+    APP_VERSION = "Version inconnue"
+    
+@app.get("/version")
+def get_version():
+    return {"version": APP_VERSION}
+
 # Inclusion des routes
 app.include_router(predict.router)
 app.include_router(batch_predict.router)

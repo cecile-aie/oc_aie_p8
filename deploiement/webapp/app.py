@@ -11,6 +11,18 @@ import io
 app = Flask(__name__)
 app.secret_key = "super-secret-key"  # Nécessaire pour utiliser session
 
+# Lecture de version au lancement
+try:
+    with open("/app/VERSION.txt", "r") as f:
+        APP_VERSION = f.read().strip()
+except FileNotFoundError:
+    APP_VERSION = "Version inconnue"
+
+@app.route("/version")
+def version():
+    return jsonify({"version": APP_VERSION})
+
+
 API_URL = os.getenv("API_URL", "http://api:8000/predict")
 
 

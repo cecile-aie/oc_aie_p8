@@ -8,6 +8,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Log du commit
+ARG GIT_COMMIT
+RUN echo $GIT_COMMIT > /app/version.txt
+
 # 🔹 Ajouter un utilisateur non-root et lui donner les droits sur /app
 RUN useradd -m appuser && chown -R appuser /app
 USER appuser
