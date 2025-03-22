@@ -11,7 +11,7 @@ RUN pip install numpy
 
 # Log du commit actuel
 ARG GIT_COMMIT
-RUN echo $GIT_COMMIT > /app/version.txt
+RUN echo $GIT_COMMIT > /app/VERSION.txt
 
 # Copier le reste du code de la webapp
 COPY . .
