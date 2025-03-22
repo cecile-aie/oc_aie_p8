@@ -3,6 +3,7 @@ services:
     build: ./api
     ports:
       - "8000:8000"
+      - "8089:8089"  # Pour l'interface Locust (temporaire)
     volumes:
       - ./api:/app
     environment:
