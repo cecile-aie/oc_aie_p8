@@ -35,13 +35,13 @@ jobs:
             git log -1
 
             echo "🛑 Arrêt des anciens conteneurs"
-            docker-compose down
+            docker-compose down --remove-orphans
 
             echo "🛠️ Reconstruction des images"
             docker-compose build
 
             echo "🚀 Redémarrage des services"
-            docker-compose up -d
+            docker-compose up -d --remove-orphans
 
             echo "📦 Conteneurs actifs"
             docker ps -a
